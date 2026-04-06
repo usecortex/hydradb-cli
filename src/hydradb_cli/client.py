@@ -5,6 +5,7 @@ All methods return raw dict responses — the CLI commands handle formatting.
 """
 
 import json
+import uuid
 from pathlib import Path
 from typing import Any, Optional
 
@@ -257,12 +258,22 @@ class HydraDBClient:
         title: Optional[str] = None,
         source_id: Optional[str] = None,
     ) -> dict:
-        """Upload text content as a knowledge source (via app_sources)."""
-        source: dict[str, Any] = {"content": text}
+        """Upload text content as a knowledge source (via app_sources).
+
+        The app_sources field expects a SourceModel with required fields:
+        id, tenant_id, sub_tenant_id, and content as a ContentModel dict.
+        """
+        sid = source_id or str(uuid.uuid4())
+        stid = sub_tenant_id or tenant_id  # default sub_tenant to tenant_id
+
+        source: dict[str, Any] = {
+            "id": sid,
+            "tenant_id": tenant_id,
+            "sub_tenant_id": stid,
+            "content": {"text": text},
+        }
         if title:
             source["title"] = title
-        if source_id:
-            source["id"] = source_id
 
         data: dict[str, Any] = {"tenant_id": tenant_id}
         if sub_tenant_id is not None:

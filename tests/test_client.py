@@ -204,13 +204,54 @@ class TestKnowledgeMethods:
                 tenant_id="t1",
                 text="Meeting notes content",
                 title="Meeting Notes",
+                source_id="custom-id",
             )
 
             data = mock_post.call_args[1]["data"]
             assert data["tenant_id"] == "t1"
             app_sources = json.loads(data["app_sources"])
-            assert app_sources["content"] == "Meeting notes content"
+            assert app_sources["id"] == "custom-id"
+            assert app_sources["tenant_id"] == "t1"
+            assert app_sources["sub_tenant_id"] == "t1"
+            assert app_sources["content"] == {"text": "Meeting notes content"}
             assert app_sources["title"] == "Meeting Notes"
+
+    def test_upload_text_auto_generates_id(self, client):
+        """When no source_id is given, a UUID is auto-generated."""
+        with patch.object(client._http, "post") as mock_post:
+            mock_resp = MagicMock()
+            mock_resp.status_code = 200
+            mock_resp.json.return_value = {"results": []}
+            mock_post.return_value = mock_resp
+
+            client.upload_text(tenant_id="t1", text="hello")
+
+            data = mock_post.call_args[1]["data"]
+            app_sources = json.loads(data["app_sources"])
+            # id should be a valid UUID string
+            import uuid
+            uuid.UUID(app_sources["id"])  # raises ValueError if invalid
+            assert app_sources["tenant_id"] == "t1"
+            assert app_sources["sub_tenant_id"] == "t1"
+            assert app_sources["content"] == {"text": "hello"}
+            assert "title" not in app_sources
+
+    def test_upload_text_with_sub_tenant(self, client):
+        """sub_tenant_id is used when explicitly provided."""
+        with patch.object(client._http, "post") as mock_post:
+            mock_resp = MagicMock()
+            mock_resp.status_code = 200
+            mock_resp.json.return_value = {"results": []}
+            mock_post.return_value = mock_resp
+
+            client.upload_text(
+                tenant_id="t1", text="hello", sub_tenant_id="sub1"
+            )
+
+            data = mock_post.call_args[1]["data"]
+            app_sources = json.loads(data["app_sources"])
+            assert app_sources["sub_tenant_id"] == "sub1"
+            assert data["sub_tenant_id"] == "sub1"
 
     def test_upload_knowledge_file_not_found(self, client):
         with pytest.raises(FileNotFoundError):
