@@ -336,6 +336,30 @@ class TestKnowledgeCommands:
         assert "uploaded" in result.output
 
     @patch("hydradb_cli.commands.knowledge.get_client")
+    def test_knowledge_upload_text_sub_tenant_wiring(self, mock_get_client, clean_config):
+        """--sub-tenant-id and --source-id flags are forwarded correctly to client.upload_text."""
+        self._setup_auth(clean_config)
+        mock_client = MagicMock()
+        mock_client.upload_text.return_value = {
+            "results": [{"source_id": "my-sid", "id": "my-sid"}]
+        }
+        mock_get_client.return_value = mock_client
+
+        result = runner.invoke(app, [
+            "knowledge", "upload-text",
+            "--text", "Q4 pricing: Starter $29, Pro $79",
+            "--sub-tenant-id", "sub-acme",
+            "--source-id", "my-sid",
+            "--title", "Pricing Notes",
+        ])
+        assert result.exit_code == 0
+        call_kwargs = mock_client.upload_text.call_args[1]
+        assert call_kwargs["sub_tenant_id"] == "sub-acme"
+        assert call_kwargs["source_id"] == "my-sid"
+        assert call_kwargs["title"] == "Pricing Notes"
+        assert call_kwargs["text"] == "Q4 pricing: Starter $29, Pro $79"
+
+    @patch("hydradb_cli.commands.knowledge.get_client")
     def test_knowledge_delete(self, mock_get_client, clean_config):
         self._setup_auth(clean_config)
         mock_client = MagicMock()

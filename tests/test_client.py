@@ -253,6 +253,28 @@ class TestKnowledgeMethods:
             assert app_sources["sub_tenant_id"] == "sub1"
             assert data["sub_tenant_id"] == "sub1"
 
+    def test_upload_text_empty_sub_tenant_consistent(self, client):
+        """Empty-string sub_tenant_id: source model and form data agree (both use tenant_id fallback).
+
+        Regression guard for the inconsistency where sub_tenant_id="" caused the source model
+        to carry tenant_id (via `or` fallback) while form data carried "" (via `is not None`
+        guard). After the fix both use the resolved stid value, so they are always in sync.
+        """
+        with patch.object(client._http, "post") as mock_post:
+            mock_resp = MagicMock()
+            mock_resp.status_code = 200
+            mock_resp.json.return_value = {"results": []}
+            mock_post.return_value = mock_resp
+
+            client.upload_text(tenant_id="t1", text="hello", sub_tenant_id="")
+
+            data = mock_post.call_args[1]["data"]
+            app_sources = json.loads(data["app_sources"])
+            # Source model resolves empty string to tenant_id via `or` fallback
+            assert app_sources["sub_tenant_id"] == "t1"
+            # Form data must NOT contain sub_tenant_id="" — that would disagree with the source model
+            assert "sub_tenant_id" not in data
+
     def test_upload_knowledge_file_not_found(self, client):
         with pytest.raises(FileNotFoundError):
             client.upload_knowledge("t1", ["/nonexistent/file.pdf"])

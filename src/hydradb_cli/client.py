@@ -264,7 +264,9 @@ class HydraDBClient:
         id, tenant_id, sub_tenant_id, and content as a ContentModel dict.
         """
         sid = source_id or str(uuid.uuid4())
-        stid = sub_tenant_id or tenant_id  # default sub_tenant to tenant_id
+        # Resolve sub_tenant_id: the source model requires it, so default to
+        # tenant_id when the caller passes None or empty string.
+        stid = sub_tenant_id if sub_tenant_id else tenant_id
 
         source: dict[str, Any] = {
             "id": sid,
@@ -278,7 +280,7 @@ class HydraDBClient:
         data: dict[str, Any] = {"tenant_id": tenant_id}
         # sub_tenant_id in form data is optional; the source model requires it
         # and defaults to tenant_id above when the caller doesn't provide one.
-        if sub_tenant_id is not None:
+        if sub_tenant_id:
             data["sub_tenant_id"] = sub_tenant_id
         data["app_sources"] = json.dumps(source)
 
