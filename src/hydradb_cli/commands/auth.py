@@ -63,6 +63,10 @@ def login(
                 if e.status_code == 401:
                     print_error("Invalid API key. Authentication failed.")
                 # Other errors are OK — tenant might not exist yet
+            except Exception:
+                # Network errors (ConnectError, TimeoutException, etc.) are
+                # non-fatal during login — we still save credentials.
+                pass
 
     save_config(
         api_key=api_key,

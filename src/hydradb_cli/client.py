@@ -58,6 +58,17 @@ class HydraDBClient:
         headers.update(self._auth_headers())
         return headers
 
+    def _request(self, method: str, url: str, **kwargs: Any) -> httpx.Response:
+        """Execute an HTTP request, converting network errors to HydraDBClientError."""
+        try:
+            return getattr(self._http, method)(url, **kwargs)
+        except httpx.ConnectError as e:
+            raise HydraDBClientError(0, f"Connection failed: {e}") from e
+        except httpx.TimeoutException as e:
+            raise HydraDBClientError(0, f"Request timed out: {e}") from e
+        except httpx.HTTPError as e:
+            raise HydraDBClientError(0, f"Network error: {e}") from e
+
     def _handle_response(self, response: httpx.Response) -> Any:
         if response.status_code >= 400:
             try:
@@ -83,7 +94,7 @@ class HydraDBClient:
             body["is_embeddings_tenant"] = is_embeddings_tenant
         if embeddings_dimension is not None:
             body["embeddings_dimension"] = embeddings_dimension
-        resp = self._http.post(
+        resp = self._request("post",
             f"{self.base_url}/tenants/create",
             headers=self._headers(),
             json=body,
@@ -91,7 +102,7 @@ class HydraDBClient:
         return self._handle_response(resp)
 
     def monitor_tenant(self, tenant_id: str) -> dict:
-        resp = self._http.get(
+        resp = self._request("get",
             f"{self.base_url}/tenants/monitor",
             headers=self._headers(),
             params={"tenant_id": tenant_id},
@@ -99,7 +110,7 @@ class HydraDBClient:
         return self._handle_response(resp)
 
     def list_sub_tenants(self, tenant_id: str) -> dict:
-        resp = self._http.get(
+        resp = self._request("get",
             f"{self.base_url}/tenants/sub_tenant_ids",
             headers=self._headers(),
             params={"tenant_id": tenant_id},
@@ -107,7 +118,7 @@ class HydraDBClient:
         return self._handle_response(resp)
 
     def delete_tenant(self, tenant_id: str) -> dict:
-        resp = self._http.delete(
+        resp = self._request("delete",
             f"{self.base_url}/tenants/delete",
             headers=self._headers(),
             params={"tenant_id": tenant_id},
@@ -148,7 +159,7 @@ class HydraDBClient:
         if sub_tenant_id is not None:
             body["sub_tenant_id"] = sub_tenant_id
 
-        resp = self._http.post(
+        resp = self._request("post",
             f"{self.base_url}/memories/add_memory",
             headers=self._headers(),
             json=body,
@@ -166,7 +177,7 @@ class HydraDBClient:
         }
         if sub_tenant_id is not None:
             body["sub_tenant_id"] = sub_tenant_id
-        resp = self._http.post(
+        resp = self._request("post",
             f"{self.base_url}/list/data",
             headers=self._headers(),
             json=body,
@@ -185,7 +196,7 @@ class HydraDBClient:
         }
         if sub_tenant_id is not None:
             params["sub_tenant_id"] = sub_tenant_id
-        resp = self._http.delete(
+        resp = self._request("delete",
             f"{self.base_url}/memories/delete_memory",
             headers=self._headers(),
             params=params,
@@ -227,7 +238,7 @@ class HydraDBClient:
             if file_metadata:
                 data["file_metadata"] = json.dumps(file_metadata)
 
-            resp = self._http.post(
+            resp = self._request("post",
                 f"{self.base_url}/ingestion/upload_knowledge",
                 headers=self._auth_headers(),
                 data=data,
@@ -258,7 +269,7 @@ class HydraDBClient:
             data["sub_tenant_id"] = sub_tenant_id
         data["app_sources"] = json.dumps(source)
 
-        resp = self._http.post(
+        resp = self._request("post",
             f"{self.base_url}/ingestion/upload_knowledge",
             headers=self._auth_headers(),
             data=data,
@@ -277,7 +288,7 @@ class HydraDBClient:
         }
         if sub_tenant_id is not None:
             params["sub_tenant_id"] = sub_tenant_id
-        resp = self._http.post(
+        resp = self._request("post",
             f"{self.base_url}/ingestion/verify_processing",
             headers=self._headers(),
             params=params,
@@ -296,7 +307,7 @@ class HydraDBClient:
         }
         if sub_tenant_id is not None:
             body["sub_tenant_id"] = sub_tenant_id
-        resp = self._http.post(
+        resp = self._request("post",
             f"{self.base_url}/knowledge/delete_knowledge",
             headers=self._headers(),
             json=body,
@@ -336,7 +347,7 @@ class HydraDBClient:
             body["graph_context"] = graph_context
         if additional_context:
             body["additional_context"] = additional_context
-        resp = self._http.post(
+        resp = self._request("post",
             f"{self.base_url}/recall/{endpoint}",
             headers=self._headers(),
             json=body,
@@ -369,7 +380,7 @@ class HydraDBClient:
             body["operator"] = operator
         if search_mode:
             body["search_mode"] = search_mode
-        resp = self._http.post(
+        resp = self._request("post",
             f"{self.base_url}/recall/boolean_recall",
             headers=self._headers(),
             json=body,
@@ -395,7 +406,7 @@ class HydraDBClient:
             body["page"] = page
         if page_size is not None:
             body["page_size"] = page_size
-        resp = self._http.post(
+        resp = self._request("post",
             f"{self.base_url}/list/data",
             headers=self._headers(),
             json=body,
@@ -416,7 +427,7 @@ class HydraDBClient:
         }
         if sub_tenant_id is not None:
             body["sub_tenant_id"] = sub_tenant_id
-        resp = self._http.post(
+        resp = self._request("post",
             f"{self.base_url}/fetch/content",
             headers=self._headers(),
             json=body,
@@ -441,7 +452,7 @@ class HydraDBClient:
             params["is_memory"] = str(is_memory).lower()
         if limit is not None:
             params["limit"] = str(limit)
-        resp = self._http.get(
+        resp = self._request("get",
             f"{self.base_url}/list/graph_relations_by_id",
             headers=self._headers(),
             params=params,

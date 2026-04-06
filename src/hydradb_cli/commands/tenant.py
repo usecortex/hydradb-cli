@@ -2,11 +2,12 @@
 
 from typing import Optional
 
+import httpx
 import typer
 
 from hydradb_cli.client import HydraDBClientError
 from hydradb_cli.output import print_result
-from hydradb_cli.utils.common import get_client, handle_api_error, require_tenant_id
+from hydradb_cli.utils.common import get_client, handle_api_error, handle_network_error, require_tenant_id
 
 app = typer.Typer(help="Manage tenants.")
 
@@ -36,6 +37,8 @@ def create(
         print_result(result, lambda r: f"  Tenant '{tenant_id}' created successfully.")
     except HydraDBClientError as e:
         handle_api_error(e)
+    except httpx.RequestError as e:
+        handle_network_error(e)
 
 
 @app.command()
@@ -61,6 +64,8 @@ def monitor(
         print_result(result, fmt)
     except HydraDBClientError as e:
         handle_api_error(e)
+    except httpx.RequestError as e:
+        handle_network_error(e)
 
 
 @app.command("list-sub-tenants")
@@ -87,6 +92,8 @@ def list_sub_tenants(
         print_result(result, fmt)
     except HydraDBClientError as e:
         handle_api_error(e)
+    except httpx.RequestError as e:
+        handle_network_error(e)
 
 
 @app.command()
@@ -111,3 +118,5 @@ def delete(
         print_result(result, lambda r: f"  Tenant '{tenant_id}' deleted.")
     except HydraDBClientError as e:
         handle_api_error(e)
+    except httpx.RequestError as e:
+        handle_network_error(e)

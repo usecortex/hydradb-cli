@@ -2,6 +2,7 @@
 
 from typing import Optional
 
+import httpx
 import typer
 
 from hydradb_cli.client import HydraDBClient, HydraDBClientError
@@ -49,7 +50,9 @@ def get_client() -> HydraDBClient:
 
 def handle_api_error(e: HydraDBClientError) -> None:
     """Format and print an API error, then exit."""
-    if e.status_code == 401:
+    if e.status_code == 0:
+        print_error(f"Connection error: {e.detail}")
+    elif e.status_code == 401:
         print_error("Authentication failed. Check your API key.")
     elif e.status_code == 403:
         print_error("Access denied. Your API key may not have permission for this operation.")
@@ -59,3 +62,9 @@ def handle_api_error(e: HydraDBClientError) -> None:
         print_error("Rate limited. Please wait and try again.")
     else:
         print_error(f"API error (HTTP {e.status_code}): {e.detail}")
+
+
+def handle_network_error(e: httpx.RequestError) -> None:
+    """Format and print a network-level error, then exit."""
+    print_error(f"Network error: Unable to reach the HydraDB API. Check your connection and base URL. ({e})")
+

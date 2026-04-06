@@ -3,6 +3,7 @@
 import sys
 from typing import Optional
 
+import httpx
 import typer
 
 from hydradb_cli.client import HydraDBClientError
@@ -10,6 +11,7 @@ from hydradb_cli.output import print_error, print_result
 from hydradb_cli.utils.common import (
     get_client,
     handle_api_error,
+    handle_network_error,
     require_tenant_id,
     resolve_sub_tenant_id,
 )
@@ -121,6 +123,8 @@ def add(
         print_result(result, fmt)
     except HydraDBClientError as e:
         handle_api_error(e)
+    except httpx.RequestError as e:
+        handle_network_error(e)
 
 
 @app.command("list")
@@ -161,6 +165,8 @@ def list_memories(
         print_result(result, fmt)
     except HydraDBClientError as e:
         handle_api_error(e)
+    except httpx.RequestError as e:
+        handle_network_error(e)
 
 
 @app.command()
@@ -212,3 +218,5 @@ def delete(
         print_result(result, fmt)
     except HydraDBClientError as e:
         handle_api_error(e)
+    except httpx.RequestError as e:
+        handle_network_error(e)

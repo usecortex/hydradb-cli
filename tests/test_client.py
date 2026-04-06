@@ -269,6 +269,30 @@ class TestFetchMethods:
             assert params["limit"] == "5"
 
 
+class TestNetworkErrors:
+    """Test that network errors are converted to HydraDBClientError."""
+
+    def test_connect_error_raises_client_error(self, client):
+        with patch.object(client._http, "post", side_effect=httpx.ConnectError("Connection refused")):
+            with pytest.raises(HydraDBClientError) as exc_info:
+                client.create_tenant("t1")
+            assert exc_info.value.status_code == 0
+            assert "Connection failed" in exc_info.value.detail
+
+    def test_timeout_error_raises_client_error(self, client):
+        with patch.object(client._http, "get", side_effect=httpx.ReadTimeout("Read timed out")):
+            with pytest.raises(HydraDBClientError) as exc_info:
+                client.monitor_tenant("t1")
+            assert exc_info.value.status_code == 0
+            assert "timed out" in exc_info.value.detail
+
+    def test_context_manager(self):
+        with HydraDBClient(api_key="k", base_url="https://test.com") as client:
+            assert client.api_key == "k"
+        # After exiting, the http client should be closed
+        assert client._http.is_closed
+
+
 class TestOptionalParams:
     """Test that optional params are omitted when not provided."""
 
