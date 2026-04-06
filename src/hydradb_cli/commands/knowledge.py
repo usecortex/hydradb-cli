@@ -4,9 +4,11 @@ from typing import Optional
 
 import httpx
 import typer
+from rich.panel import Panel
+from rich.table import Table
 
 from hydradb_cli.client import HydraDBClientError
-from hydradb_cli.output import print_error, print_result
+from hydradb_cli.output import print_error, print_result, spinner
 from hydradb_cli.utils.common import (
     get_client,
     handle_api_error,
@@ -26,15 +28,31 @@ _STATUS_LABELS = {
     "failed": "errored",
 }
 
+_STATUS_STYLES = {
+    "queued": "yellow",
+    "processing": "yellow",
+    "indexed": "green",
+    "errored": "red",
+    "not found \u2014 source ID does not exist": "red",
+}
+
 
 def _human_status(raw: str, error_code: Optional[str] = None) -> str:
     """Map raw API status + error_code to a clear label."""
     label = _STATUS_LABELS.get(raw.lower(), raw)
     if label == "errored" and error_code:
         if error_code == "FILE_NOT_FOUND":
-            return "not found — source ID does not exist"
+            return "not found \u2014 source ID does not exist"
         return f"errored ({error_code})"
     return label
+
+
+def _status_style(label: str) -> str:
+    """Return a Rich style string for a given status label."""
+    for key, style in _STATUS_STYLES.items():
+        if key in label:
+            return style
+    return "white"
 
 
 @app.command()
@@ -57,7 +75,7 @@ def upload(
     """Upload files to the knowledge base.
 
     Supports PDF, DOCX, TXT, and other document formats. Files are processed
-    asynchronously — use 'hydradb knowledge verify' to check processing status.
+    asynchronously \u2014 use 'hydradb knowledge verify' to check processing status.
 
     Examples:
 
@@ -73,26 +91,43 @@ def upload(
     client = get_client()
 
     try:
-        result = client.upload_knowledge(
-            tenant_id=tid,
-            file_paths=files,
-            sub_tenant_id=stid,
-            upsert=upsert,
-        )
+        with spinner(f"Uploading {len(files)} file(s)..."):
+            result = client.upload_knowledge(
+                tenant_id=tid,
+                file_paths=files,
+                sub_tenant_id=stid,
+                upsert=upsert,
+            )
 
-        def fmt(r: dict) -> str:
-            lines = [f"  Uploaded {len(files)} file(s) to tenant '{tid}'."]
+        def fmt(r: dict):
+            table = Table(
+                show_header=True,
+                header_style="bold cyan",
+                border_style="dim",
+                pad_edge=True,
+                expand=False,
+            )
+            table.add_column("Source ID")
+            table.add_column("Status")
+
             results = r.get("results", [])
             for item in results:
                 sid = item.get("source_id", item.get("id", "unknown"))
                 status = _human_status(item.get("status", "processing"))
+                style = _status_style(status)
                 error = item.get("error")
-                lines.append(f"  Source ID: {sid} (status: {status})")
+                status_display = f"[{style}]{status}[/{style}]"
                 if error:
-                    lines.append(f"  Error: {error}")
-            lines.append("")
-            lines.append("  Use 'hydradb knowledge verify' to check processing status.")
-            return "\n".join(lines)
+                    status_display += f" [red]({error})[/red]"
+                table.add_row(sid, status_display)
+
+            return Panel(
+                table,
+                title=f"[bold cyan]/// Uploaded {len(files)} file(s) to '{tid}'[/bold cyan]",
+                subtitle="[dim]Run 'hydradb knowledge verify' to check processing status[/dim]",
+                border_style="green",
+                padding=(0, 1),
+            )
 
         print_result(result, fmt)
     except FileNotFoundError as e:
@@ -143,23 +178,26 @@ def upload_text(
     client = get_client()
 
     try:
-        result = client.upload_text(
-            tenant_id=tid,
-            text=text,
-            sub_tenant_id=stid,
-            title=title,
-            source_id=source_id,
-        )
+        with spinner("Uploading text..."):
+            result = client.upload_text(
+                tenant_id=tid,
+                text=text,
+                sub_tenant_id=stid,
+                title=title,
+                source_id=source_id,
+            )
 
-        def fmt(r: dict) -> str:
+        def fmt(r: dict):
             preview = text[:80] + "..." if len(text) > 80 else text
-            lines = [f"  Knowledge source uploaded to tenant '{tid}'."]
-            lines.append(f"  Content: \"{preview}\"")
+            lines = [
+                f"[green]\u2713[/green] Knowledge source uploaded to tenant [bold]{tid}[/bold]",
+                f"[dim]\"{preview}\"[/dim]",
+            ]
             results = r.get("results", [])
             for item in results:
                 sid = item.get("source_id", item.get("id", "unknown"))
-                lines.append(f"  Source ID: {sid}")
-            return "\n".join(lines)
+                lines.append(f"[cyan]Source ID:[/cyan] {sid}")
+            return Panel("\n".join(lines), border_style="green", padding=(0, 1))
 
         print_result(result, fmt)
     except HydraDBClientError as e:
@@ -201,14 +239,26 @@ def verify(
     client = get_client()
 
     try:
-        result = client.verify_processing(
-            tenant_id=tid,
-            file_ids=clean_ids,
-            sub_tenant_id=stid,
-        )
+        with spinner("Verifying processing status..."):
+            result = client.verify_processing(
+                tenant_id=tid,
+                file_ids=clean_ids,
+                sub_tenant_id=stid,
+            )
 
-        def fmt(r: dict) -> str:
-            lines = [f"  Processing status for {len(clean_ids)} source(s):"]
+        def fmt(r: dict):
+            table = Table(
+                show_header=True,
+                header_style="bold cyan",
+                border_style="dim",
+                pad_edge=True,
+                expand=False,
+                title=f"Processing status for {len(clean_ids)} source(s)",
+                title_style="bold",
+            )
+            table.add_column("Source ID")
+            table.add_column("Status")
+
             statuses = r.get("statuses", r.get("results", []))
             if isinstance(statuses, list):
                 for item in statuses:
@@ -216,11 +266,12 @@ def verify(
                     raw_status = item.get("indexing_status", item.get("status", "unknown"))
                     error_code = item.get("error_code")
                     label = _human_status(raw_status, error_code)
-                    lines.append(f"  {fid}: {label}")
+                    style = _status_style(label)
+                    table.add_row(fid, f"[{style}]{label}[/{style}]")
             elif isinstance(r, dict):
                 for key, val in r.items():
-                    lines.append(f"  {key}: {val}")
-            return "\n".join(lines)
+                    table.add_row(key, str(val))
+            return table
 
         print_result(result, fmt)
     except HydraDBClientError as e:
@@ -274,16 +325,16 @@ def delete(
     client = get_client()
 
     try:
-        result = client.delete_knowledge(
-            tenant_id=tid,
-            ids=clean_ids,
-            sub_tenant_id=stid,
+        with spinner("Deleting knowledge sources..."):
+            result = client.delete_knowledge(
+                tenant_id=tid,
+                ids=clean_ids,
+                sub_tenant_id=stid,
+            )
+        print_result(
+            result,
+            lambda r: f"[green]\u2713[/green] Deleted {len(clean_ids)} knowledge source(s) from tenant [bold]{tid}[/bold].",
         )
-
-        def fmt(r: dict) -> str:
-            return f"  Deleted {len(clean_ids)} knowledge source(s) from tenant '{tid}'."
-
-        print_result(result, fmt)
     except HydraDBClientError as e:
         handle_api_error(e)
     except httpx.RequestError as e:

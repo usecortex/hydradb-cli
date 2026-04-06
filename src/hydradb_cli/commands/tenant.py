@@ -4,9 +4,10 @@ from typing import Optional
 
 import httpx
 import typer
+from rich.panel import Panel
 
 from hydradb_cli.client import HydraDBClientError
-from hydradb_cli.output import print_error, print_result
+from hydradb_cli.output import make_kv_table, make_table, print_error, print_result, spinner
 from hydradb_cli.utils.common import get_client, handle_api_error, handle_network_error, require_tenant_id
 
 app = typer.Typer(help="Manage tenants.")
@@ -35,12 +36,16 @@ def create(
 
     client = get_client()
     try:
-        result = client.create_tenant(
-            tenant_id=tenant_id,
-            is_embeddings_tenant=embeddings or None,
-            embeddings_dimension=embeddings_dimension,
+        with spinner("Creating tenant..."):
+            result = client.create_tenant(
+                tenant_id=tenant_id,
+                is_embeddings_tenant=embeddings or None,
+                embeddings_dimension=embeddings_dimension,
+            )
+        print_result(
+            result,
+            lambda r: f"[green]\u2713[/green] Tenant [bold]{tenant_id}[/bold] created successfully.",
         )
-        print_result(result, lambda r: f"  Tenant '{tenant_id}' created successfully.")
     except HydraDBClientError as e:
         handle_api_error(e)
     except httpx.RequestError as e:
@@ -62,15 +67,20 @@ def monitor(
     tid = require_tenant_id(tenant_id or tenant_id_arg)
     client = get_client()
     try:
-        result = client.monitor_tenant(tid)
+        with spinner("Fetching tenant stats..."):
+            result = client.monitor_tenant(tid)
 
-        def fmt(r: dict) -> str:
-            lines = [f"  Tenant: {tid}"]
-            if isinstance(r, dict):
-                for key, val in r.items():
-                    if key not in ("tenant_id",):
-                        lines.append(f"  {key}: {val}")
-            return "\n".join(lines)
+        def fmt(r: dict):
+            if not isinstance(r, dict):
+                return str(r)
+            pairs = [(k, str(v)) for k, v in r.items() if k != "tenant_id"]
+            table = make_kv_table(pairs)
+            return Panel(
+                table,
+                title=f"[bold cyan]/// Tenant: {tid}[/bold cyan]",
+                border_style="cyan",
+                padding=(0, 1),
+            )
 
         print_result(result, fmt)
     except HydraDBClientError as e:
@@ -94,16 +104,15 @@ def list_sub_tenants(
     tid = require_tenant_id(tenant_id or tenant_id_arg)
     client = get_client()
     try:
-        result = client.list_sub_tenants(tid)
+        with spinner("Listing sub-tenants..."):
+            result = client.list_sub_tenants(tid)
 
-        def fmt(r: dict) -> str:
+        def fmt(r: dict):
             sub_ids = r.get("sub_tenant_ids", [])
             if not sub_ids:
-                return f"  No sub-tenants found for tenant '{tid}'."
-            lines = [f"  Sub-tenants for '{tid}':"]
-            for sid in sub_ids:
-                lines.append(f"    - {sid}")
-            return "\n".join(lines)
+                return f"[dim]No sub-tenants found for tenant '{tid}'.[/dim]"
+            rows = [[sid] for sid in sub_ids]
+            return make_table("Sub-Tenant ID", rows=rows, title=f"Sub-tenants for '{tid}'")
 
         print_result(result, fmt)
     except HydraDBClientError as e:
@@ -133,8 +142,12 @@ def delete(
         )
     client = get_client()
     try:
-        result = client.delete_tenant(tenant_id)
-        print_result(result, lambda r: f"  Tenant '{tenant_id}' deleted.")
+        with spinner("Deleting tenant..."):
+            result = client.delete_tenant(tenant_id)
+        print_result(
+            result,
+            lambda r: f"[green]\u2713[/green] Tenant [bold]{tenant_id}[/bold] deleted.",
+        )
     except HydraDBClientError as e:
         handle_api_error(e)
     except httpx.RequestError as e:

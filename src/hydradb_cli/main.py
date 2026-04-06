@@ -22,19 +22,25 @@ import typer
 
 from hydradb_cli import __version__
 from hydradb_cli.commands import auth, config_cmd, fetch, knowledge, memories, recall, tenant
-from hydradb_cli.output import set_output_format
+from hydradb_cli.output import console, set_output_format
 
 app = typer.Typer(
     name="hydradb",
-    help="HydraDB CLI — Agent-friendly interface for memory, recall, and ingestion.",
+    help=(
+        "[bold cyan]///[/bold cyan] HydraDB CLI\n\n"
+        "The context layer for AI — manage memories, recall context, "
+        "and ingest knowledge from the terminal."
+    ),
     no_args_is_help=True,
-    rich_markup_mode=None,
+    rich_markup_mode="rich",
 )
 
 
 def _version_callback(value: bool) -> None:
     if value:
-        typer.echo(f"hydradb-cli {__version__}")
+        console.print(
+            f"[bold cyan]///[/bold cyan] [bold]hydradb-cli[/bold] {__version__}"
+        )
         raise typer.Exit()
 
 
@@ -56,25 +62,23 @@ def main(
         help="Show version and exit.",
     ),
 ) -> None:
-    """HydraDB CLI — The context layer for AI, from the terminal."""
+    """[bold cyan]///[/bold cyan] HydraDB CLI — The context layer for AI, from the terminal."""
     if output not in ("human", "json"):
         typer.echo(f"Error: --output must be 'human' or 'json', got '{output}'", err=True)
         raise typer.Exit(code=1)
     set_output_format(output)
 
 
-# --- Register top-level auth commands ---
-app.command(name="login")(auth.login)
-app.command(name="logout")(auth.logout)
-app.command(name="whoami")(auth.whoami)
+app.command(name="login", help="Authenticate with HydraDB and save credentials.")(auth.login)
+app.command(name="logout", help="Remove stored credentials.")(auth.logout)
+app.command(name="whoami", help="Show current authentication status.")(auth.whoami)
 
-# --- Register resource sub-commands ---
-app.add_typer(tenant.app, name="tenant")
-app.add_typer(memories.app, name="memories")
-app.add_typer(knowledge.app, name="knowledge")
-app.add_typer(recall.app, name="recall")
-app.add_typer(fetch.app, name="fetch")
-app.add_typer(config_cmd.app, name="config")
+app.add_typer(tenant.app, name="tenant", help="[bold]Tenant[/bold] management.")
+app.add_typer(memories.app, name="memories", help="[bold]Memory[/bold] operations.")
+app.add_typer(knowledge.app, name="knowledge", help="[bold]Knowledge[/bold] base ingestion.")
+app.add_typer(recall.app, name="recall", help="[bold]Context[/bold] retrieval.")
+app.add_typer(fetch.app, name="fetch", help="[bold]Inspect[/bold] stored data and relations.")
+app.add_typer(config_cmd.app, name="config", help="CLI [bold]configuration[/bold].")
 
 
 if __name__ == "__main__":
