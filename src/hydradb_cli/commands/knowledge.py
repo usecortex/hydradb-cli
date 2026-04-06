@@ -17,6 +17,25 @@ from hydradb_cli.utils.common import (
 
 app = typer.Typer(help="Knowledge base ingestion and management.")
 
+_STATUS_LABELS = {
+    "queued": "queued",
+    "processing": "processing",
+    "indexed": "indexed",
+    "completed": "indexed",
+    "errored": "errored",
+    "failed": "errored",
+}
+
+
+def _human_status(raw: str, error_code: Optional[str] = None) -> str:
+    """Map raw API status + error_code to a clear label."""
+    label = _STATUS_LABELS.get(raw.lower(), raw)
+    if label == "errored" and error_code:
+        if error_code == "FILE_NOT_FOUND":
+            return "not found — source ID does not exist"
+        return f"errored ({error_code})"
+    return label
+
 
 @app.command()
 def upload(
@@ -46,6 +65,9 @@ def upload(
 
         hydradb knowledge upload doc1.pdf doc2.pdf --tenant-id my-tenant --upsert
     """
+    if not files:
+        print_error("At least one file path is required.")
+
     tid = require_tenant_id(tenant_id)
     stid = resolve_sub_tenant_id(sub_tenant_id)
     client = get_client()
@@ -63,8 +85,11 @@ def upload(
             results = r.get("results", [])
             for item in results:
                 sid = item.get("source_id", item.get("id", "unknown"))
-                status = item.get("status", "processing")
+                status = _human_status(item.get("status", "processing"))
+                error = item.get("error")
                 lines.append(f"  Source ID: {sid} (status: {status})")
+                if error:
+                    lines.append(f"  Error: {error}")
             lines.append("")
             lines.append("  Use 'hydradb knowledge verify' to check processing status.")
             return "\n".join(lines)
@@ -80,8 +105,8 @@ def upload(
 
 @app.command("upload-text")
 def upload_text(
-    text: str = typer.Option(
-        ...,
+    text: Optional[str] = typer.Option(
+        None,
         "--text",
         "-t",
         help="Text content to upload as a knowledge source.",
@@ -110,6 +135,9 @@ def upload_text(
 
         hydradb knowledge upload-text --text "..." --title "Meeting Notes" --tenant-id my-tenant
     """
+    if not text or not text.strip():
+        print_error("--text is required and cannot be empty.")
+
     tid = require_tenant_id(tenant_id)
     stid = resolve_sub_tenant_id(sub_tenant_id)
     client = get_client()
@@ -161,6 +189,13 @@ def verify(
 
         hydradb knowledge verify source_abc123 --tenant-id my-tenant
     """
+    if not file_ids:
+        print_error("At least one file/source ID is required.")
+
+    clean_ids = [fid.strip() for fid in file_ids if fid.strip()]
+    if not clean_ids:
+        print_error("File IDs cannot be empty.")
+
     tid = require_tenant_id(tenant_id)
     stid = resolve_sub_tenant_id(sub_tenant_id)
     client = get_client()
@@ -168,18 +203,20 @@ def verify(
     try:
         result = client.verify_processing(
             tenant_id=tid,
-            file_ids=file_ids,
+            file_ids=clean_ids,
             sub_tenant_id=stid,
         )
 
         def fmt(r: dict) -> str:
-            lines = [f"  Processing status for {len(file_ids)} source(s):"]
+            lines = [f"  Processing status for {len(clean_ids)} source(s):"]
             statuses = r.get("statuses", r.get("results", []))
             if isinstance(statuses, list):
                 for item in statuses:
                     fid = item.get("file_id", item.get("id", "unknown"))
-                    status = item.get("status", "unknown")
-                    lines.append(f"  {fid}: {status}")
+                    raw_status = item.get("indexing_status", item.get("status", "unknown"))
+                    error_code = item.get("error_code")
+                    label = _human_status(raw_status, error_code)
+                    lines.append(f"  {fid}: {label}")
             elif isinstance(r, dict):
                 for key, val in r.items():
                     lines.append(f"  {key}: {val}")
@@ -219,9 +256,16 @@ def delete(
 
         hydradb knowledge delete HydraDoc1234 HydraDoc5678 --tenant-id my-tenant -y
     """
+    if not ids:
+        print_error("At least one source ID is required.")
+
+    clean_ids = [i.strip() for i in ids if i.strip()]
+    if not clean_ids:
+        print_error("Source IDs cannot be empty.")
+
     if not confirm:
         typer.confirm(
-            f"Delete {len(ids)} knowledge source(s)? This action is irreversible.",
+            f"Delete {len(clean_ids)} knowledge source(s)? This action is irreversible.",
             abort=True,
         )
 
@@ -232,12 +276,12 @@ def delete(
     try:
         result = client.delete_knowledge(
             tenant_id=tid,
-            ids=ids,
+            ids=clean_ids,
             sub_tenant_id=stid,
         )
 
         def fmt(r: dict) -> str:
-            return f"  Deleted {len(ids)} knowledge source(s) from tenant '{tid}'."
+            return f"  Deleted {len(clean_ids)} knowledge source(s) from tenant '{tid}'."
 
         print_result(result, fmt)
     except HydraDBClientError as e:

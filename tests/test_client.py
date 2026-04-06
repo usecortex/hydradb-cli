@@ -340,7 +340,7 @@ class TestNetworkErrors:
             with pytest.raises(HydraDBClientError) as exc_info:
                 client.create_tenant("t1")
             assert exc_info.value.status_code == 0
-            assert "Connection failed" in exc_info.value.detail
+            assert "Could not connect" in exc_info.value.detail
 
     def test_timeout_error_raises_client_error(self, client):
         with patch.object(client._http, "get", side_effect=httpx.ReadTimeout("Read timed out")):

@@ -44,17 +44,17 @@ def login(
     For interactive use, omit --api-key and you will be prompted.
     For agents/scripts, always pass --api-key explicitly.
     """
-    # Prompt interactively only if --api-key not provided and stdin is a TTY
     if api_key is None:
         if sys.stdin.isatty():
             api_key = typer.prompt("Enter your HydraDB API key", hide_input=True)
         else:
             print_error("No API key provided. Use --api-key or run interactively.")
 
-    if not api_key:
+    if not api_key or not api_key.strip():
         print_error("API key cannot be empty.")
 
-    # Validate the API key by making a test request
+    validation_warning: Optional[str] = None
+
     with HydraDBClient(api_key=api_key, base_url=base_url) as client:
         if tenant_id:
             try:
@@ -62,11 +62,22 @@ def login(
             except HydraDBClientError as e:
                 if e.status_code == 401:
                     print_error("Invalid API key. Authentication failed.")
-                # Other errors are OK — tenant might not exist yet
+                elif e.status_code == 403:
+                    validation_warning = (
+                        "Warning: API key was rejected by the server (HTTP 403). "
+                        "It may be invalid or lack permission for this tenant. "
+                        "Credentials saved — verify with 'hydradb tenant monitor'."
+                    )
+                elif e.status_code != 0:
+                    validation_warning = (
+                        f"Warning: Could not validate against tenant '{tenant_id}' "
+                        f"(HTTP {e.status_code}). Credentials saved — verify with 'hydradb whoami'."
+                    )
             except Exception:
-                # Network errors (ConnectError, TimeoutException, etc.) are
-                # non-fatal during login — we still save credentials.
-                pass
+                validation_warning = (
+                    "Warning: Could not reach the API to validate credentials. "
+                    "Credentials saved — verify with 'hydradb whoami'."
+                )
 
     save_config(
         api_key=api_key,
@@ -75,15 +86,22 @@ def login(
         base_url=base_url,
     )
 
+    def fmt(r: dict) -> str:
+        lines = ["  Logged in to HydraDB. Credentials saved to ~/.hydradb/config.json"]
+        if tenant_id:
+            lines.append(f"  Default tenant: {tenant_id}")
+        if validation_warning:
+            lines.append(f"\n  {validation_warning}")
+        return "\n".join(lines)
+
     result = {
         "success": True,
         "message": "Logged in to HydraDB. Credentials saved to ~/.hydradb/config.json",
         "tenant_id": tenant_id,
     }
-    print_result(result, lambda r: (
-        f"  Logged in to HydraDB. Credentials saved to ~/.hydradb/config.json"
-        + (f"\n  Default tenant: {tenant_id}" if tenant_id else "")
-    ))
+    if validation_warning:
+        result["warning"] = validation_warning
+    print_result(result, fmt)
 
 
 def logout() -> None:
@@ -100,7 +118,6 @@ def whoami() -> None:
     cfg = get_full_config()
 
     if get_output_format() == "json":
-        # Mask the API key in JSON output
         safe_cfg = dict(cfg)
         if safe_cfg.get("api_key"):
             key = safe_cfg["api_key"]

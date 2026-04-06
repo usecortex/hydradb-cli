@@ -12,6 +12,7 @@ from hydradb_cli.utils.common import (
     get_client,
     handle_api_error,
     handle_network_error,
+    read_stdin_safe,
     require_tenant_id,
     resolve_sub_tenant_id,
 )
@@ -71,22 +72,32 @@ def add(
 
         hydradb memories add --text "User prefers dark mode" --tenant-id my-tenant
 
-        echo "Meeting notes..." | hydradb memories add --text - --tenant-id my-tenant
+        echo "Meeting notes..." | hydradb memories add --tenant-id my-tenant
     """
-    if text is None:
-        # Check if stdin has data
-        if not sys.stdin.isatty():
-            text = sys.stdin.read().strip()
-        if not text:
-            print_error("No text provided. Use --text or pipe content via stdin.")
-
-    # Handle stdin marker
     if text == "-":
         if sys.stdin.isatty():
             typer.echo("Reading from stdin (Ctrl+D to finish)...", err=True)
-        text = sys.stdin.read().strip()
+            text = sys.stdin.read().strip()
+        else:
+            stdin_data = read_stdin_safe()
+            text = stdin_data
         if not text:
             print_error("No input received from stdin.")
+
+    if text is None:
+        stdin_data = read_stdin_safe()
+        if stdin_data:
+            text = stdin_data
+        else:
+            print_error(
+                "No text provided. Use --text 'your text', "
+                "pipe via stdin, or use --text - for interactive input."
+            )
+
+    if not text or not text.strip():
+        print_error("Memory text cannot be empty or whitespace-only.")
+
+    text = text.strip()
 
     tid = require_tenant_id(tenant_id)
     stid = resolve_sub_tenant_id(sub_tenant_id)
@@ -117,7 +128,10 @@ def add(
             for item in results:
                 sid = item.get("source_id", "unknown")
                 status = item.get("status", "unknown")
+                error = item.get("error")
                 lines.append(f"  Source ID: {sid} (status: {status})")
+                if error:
+                    lines.append(f"  Error: {error}")
             return "\n".join(lines)
 
         print_result(result, fmt)
@@ -193,6 +207,9 @@ def delete(
 
         hydradb memories delete mem_abc123 --tenant-id my-tenant
     """
+    if not memory_id.strip():
+        print_error("Memory ID cannot be empty.")
+
     if not confirm:
         typer.confirm(
             f"Delete memory '{memory_id}'? This action is irreversible.",
@@ -211,9 +228,14 @@ def delete(
         )
 
         def fmt(r: dict) -> str:
-            if r.get("user_memory_deleted"):
+            deleted = r.get("user_memory_deleted")
+            success = r.get("success")
+            if deleted and success:
                 return f"  Memory '{memory_id}' deleted."
-            return f"  Memory '{memory_id}' was not found or already deleted."
+            elif success and not deleted:
+                return f"  Memory '{memory_id}' was not found or already deleted."
+            else:
+                return f"  Could not confirm deletion of memory '{memory_id}'."
 
         print_result(result, fmt)
     except HydraDBClientError as e:

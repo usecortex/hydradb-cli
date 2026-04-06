@@ -34,7 +34,9 @@ class HydraDBClient:
     ):
         self.api_key = api_key or get_api_key()
         self.base_url = (base_url or get_base_url()).rstrip("/")
-        self._http = httpx.Client(timeout=timeout)
+        self._http = httpx.Client(
+            timeout=httpx.Timeout(timeout, connect=10.0),
+        )
 
     def close(self) -> None:
         """Close the underlying HTTP client."""
@@ -64,7 +66,17 @@ class HydraDBClient:
         try:
             return getattr(self._http, method)(url, **kwargs)
         except httpx.ConnectError as e:
-            raise HydraDBClientError(0, f"Connection failed: {e}") from e
+            raise HydraDBClientError(
+                0, f"Could not connect to {self.base_url}. Check your network and base URL."
+            ) from e
+        except httpx.ConnectTimeout as e:
+            raise HydraDBClientError(
+                0, f"Connection timed out reaching {self.base_url}."
+            ) from e
+        except httpx.ReadTimeout as e:
+            raise HydraDBClientError(
+                0, "Request timed out waiting for a response. The server may be under heavy load."
+            ) from e
         except httpx.TimeoutException as e:
             raise HydraDBClientError(0, f"Request timed out: {e}") from e
         except httpx.HTTPError as e:
@@ -214,15 +226,17 @@ class HydraDBClient:
         upsert: bool = False,
         file_metadata: Optional[list[dict]] = None,
     ) -> dict:
-        # Validate all files exist before opening any
         paths = []
         for fp in file_paths:
             p = Path(fp)
             if not p.exists():
                 raise FileNotFoundError(f"File not found: {fp}")
+            if not p.is_file():
+                raise FileNotFoundError(f"Not a file: {fp}")
+            if p.stat().st_size == 0:
+                raise FileNotFoundError(f"File is empty: {fp}")
             paths.append(p)
 
-        # Open all files
         opened = []
         files = []
         try:
@@ -264,8 +278,6 @@ class HydraDBClient:
         id, tenant_id, sub_tenant_id, and content as a ContentModel dict.
         """
         sid = source_id or str(uuid.uuid4())
-        # Resolve sub_tenant_id: the source model requires it, so default to
-        # tenant_id when the caller passes None or empty string.
         stid = sub_tenant_id if sub_tenant_id else tenant_id
 
         source: dict[str, Any] = {
@@ -278,8 +290,6 @@ class HydraDBClient:
             source["title"] = title
 
         data: dict[str, Any] = {"tenant_id": tenant_id}
-        # sub_tenant_id in form data is optional; the source model requires it
-        # and defaults to tenant_id above when the caller doesn't provide one.
         if sub_tenant_id:
             data["sub_tenant_id"] = sub_tenant_id
         data["app_sources"] = json.dumps(source)
