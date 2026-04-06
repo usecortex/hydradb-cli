@@ -22,6 +22,17 @@ def clean_config(tmp_path, monkeypatch):
         monkeypatch.delenv(var, raising=False)
 
 
+def _login(api_key="k", tenant_id="t1"):
+    """Login helper that skips real API validation."""
+    with patch("hydradb_cli.commands.auth.HydraDBClient") as mock_cls:
+        mock_client = MagicMock()
+        mock_client.monitor_tenant.return_value = {"status": "ok"}
+        mock_client.__enter__ = MagicMock(return_value=mock_client)
+        mock_client.__exit__ = MagicMock(return_value=False)
+        mock_cls.return_value = mock_client
+        return runner.invoke(app, ["login", "--api-key", api_key, "--tenant-id", tenant_id])
+
+
 class TestVersion:
     def test_version_flag(self):
         result = runner.invoke(app, ["--version"])
@@ -60,32 +71,51 @@ class TestHelp:
 
 class TestLogin:
     def test_login_saves_config(self, clean_config):
-        result = runner.invoke(app, [
-            "login", "--api-key", "test-key-abcdef1234567890", "--tenant-id", "t1"
-        ])
+        result = _login(api_key="test-key-abcdef1234567890", tenant_id="t1")
         assert result.exit_code == 0
         assert "Logged in" in result.output
 
-        # Verify config was saved
         result2 = runner.invoke(app, ["whoami"])
-        assert "test-key" in result2.output  # masked but starts with test-key
+        assert "test-key" in result2.output
         assert "t1" in result2.output
 
     def test_login_json_output(self, clean_config):
-        result = runner.invoke(app, [
-            "--output", "json",
-            "login", "--api-key", "test-key-abc", "--tenant-id", "t1"
-        ])
+        with patch("hydradb_cli.commands.auth.HydraDBClient") as mock_cls:
+            mock_client = MagicMock()
+            mock_client.monitor_tenant.return_value = {"status": "ok"}
+            mock_client.__enter__ = MagicMock(return_value=mock_client)
+            mock_client.__exit__ = MagicMock(return_value=False)
+            mock_cls.return_value = mock_client
+            result = runner.invoke(app, [
+                "--output", "json",
+                "login", "--api-key", "test-key-abc", "--tenant-id", "t1"
+            ])
         assert result.exit_code == 0
         data = json.loads(result.output)
         assert data["success"] is True
 
+    def test_login_empty_key_fails(self, clean_config):
+        result = runner.invoke(app, ["login", "--api-key", ""])
+        assert result.exit_code != 0
+
+    def test_login_invalid_key_warns(self, clean_config):
+        with patch("hydradb_cli.commands.auth.HydraDBClient") as mock_cls:
+            from hydradb_cli.client import HydraDBClientError
+            mock_client = MagicMock()
+            mock_client.monitor_tenant.side_effect = HydraDBClientError(403, "Forbidden")
+            mock_client.__enter__ = MagicMock(return_value=mock_client)
+            mock_client.__exit__ = MagicMock(return_value=False)
+            mock_cls.return_value = mock_client
+            result = runner.invoke(app, [
+                "login", "--api-key", "bad-key", "--tenant-id", "t1"
+            ])
+        assert result.exit_code == 0
+        assert "Warning" in result.output
+
 
 class TestLogout:
     def test_logout(self, clean_config):
-        # Login first
-        runner.invoke(app, ["login", "--api-key", "k", "--tenant-id", "t"])
-        # Logout
+        _login()
         result = runner.invoke(app, ["logout"])
         assert result.exit_code == 0
         assert "Logged out" in result.output
@@ -104,10 +134,10 @@ class TestWhoami:
         assert "Not configured" in result.output
 
     def test_whoami_with_config(self, clean_config):
-        runner.invoke(app, ["login", "--api-key", "mykey12345678", "--tenant-id", "t1"])
+        _login(api_key="mykey12345678", tenant_id="t1")
         result = runner.invoke(app, ["whoami"])
         assert result.exit_code == 0
-        assert "mykey123" in result.output  # masked
+        assert "mykey123" in result.output
         assert "t1" in result.output
 
     def test_whoami_json(self, clean_config):
@@ -142,10 +172,18 @@ class TestConfigCommands:
         data = json.loads(result.output)
         assert "base_url" in data
 
+    def test_config_set_empty_api_key_fails(self, clean_config):
+        result = runner.invoke(app, ["config", "set", "api_key", ""])
+        assert result.exit_code != 0
+
+    def test_config_set_empty_base_url_fails(self, clean_config):
+        result = runner.invoke(app, ["config", "set", "base_url", "   "])
+        assert result.exit_code != 0
+
 
 class TestTenantCommands:
     def _setup_auth(self, clean_config):
-        runner.invoke(app, ["login", "--api-key", "k", "--tenant-id", "t1"])
+        _login()
 
     @patch("hydradb_cli.commands.tenant.get_client")
     def test_tenant_create(self, mock_get_client, clean_config):
@@ -169,12 +207,22 @@ class TestTenantCommands:
         assert result.exit_code == 0
 
     @patch("hydradb_cli.commands.tenant.get_client")
+    def test_tenant_monitor_with_option(self, mock_get_client, clean_config):
+        self._setup_auth(clean_config)
+        mock_client = MagicMock()
+        mock_client.monitor_tenant.return_value = {"status": "healthy"}
+        mock_get_client.return_value = mock_client
+
+        result = runner.invoke(app, ["tenant", "monitor", "--tenant-id", "other-t"])
+        assert result.exit_code == 0
+        mock_client.monitor_tenant.assert_called_once_with("other-t")
+
+    @patch("hydradb_cli.commands.tenant.get_client")
     def test_tenant_delete_requires_confirm(self, mock_get_client, clean_config):
         self._setup_auth(clean_config)
         mock_client = MagicMock()
         mock_get_client.return_value = mock_client
 
-        # Without --yes, should prompt and abort
         result = runner.invoke(app, ["tenant", "delete", "t1"], input="n\n")
         assert result.exit_code != 0 or "Aborted" in result.output
 
@@ -191,7 +239,7 @@ class TestTenantCommands:
 
 class TestMemoriesCommands:
     def _setup_auth(self, clean_config):
-        runner.invoke(app, ["login", "--api-key", "k", "--tenant-id", "t1"])
+        _login()
 
     @patch("hydradb_cli.commands.memories.get_client")
     def test_memories_add(self, mock_get_client, clean_config):
@@ -227,6 +275,19 @@ class TestMemoriesCommands:
         assert data["success_count"] == 1
 
     @patch("hydradb_cli.commands.memories.get_client")
+    def test_memories_add_empty_text_fails(self, mock_get_client, clean_config):
+        self._setup_auth(clean_config)
+        result = runner.invoke(app, ["memories", "add", "--text", "   "])
+        assert result.exit_code != 0
+        assert "empty" in result.output.lower() or "whitespace" in result.output.lower()
+
+    @patch("hydradb_cli.commands.memories.get_client")
+    def test_memories_add_no_text_fails(self, mock_get_client, clean_config):
+        self._setup_auth(clean_config)
+        result = runner.invoke(app, ["memories", "add"])
+        assert result.exit_code != 0
+
+    @patch("hydradb_cli.commands.memories.get_client")
     def test_memories_list(self, mock_get_client, clean_config):
         self._setup_auth(clean_config)
         mock_client = MagicMock()
@@ -247,7 +308,7 @@ class TestMemoriesCommands:
     def test_memories_delete(self, mock_get_client, clean_config):
         self._setup_auth(clean_config)
         mock_client = MagicMock()
-        mock_client.delete_memory.return_value = {"user_memory_deleted": True}
+        mock_client.delete_memory.return_value = {"success": True, "user_memory_deleted": True}
         mock_get_client.return_value = mock_client
 
         result = runner.invoke(app, ["memories", "delete", "m1", "--yes"])
@@ -257,7 +318,7 @@ class TestMemoriesCommands:
 
 class TestRecallCommands:
     def _setup_auth(self, clean_config):
-        runner.invoke(app, ["login", "--api-key", "k", "--tenant-id", "t1"])
+        _login()
 
     @patch("hydradb_cli.commands.recall.get_client")
     def test_recall_full(self, mock_get_client, clean_config):
@@ -315,10 +376,35 @@ class TestRecallCommands:
         ])
         assert result.exit_code == 0
 
+    @patch("hydradb_cli.commands.recall.get_client")
+    def test_recall_empty_query_fails(self, mock_get_client, clean_config):
+        self._setup_auth(clean_config)
+        result = runner.invoke(app, ["recall", "full", ""])
+        assert result.exit_code != 0
+        assert "empty" in result.output.lower()
+
+    @patch("hydradb_cli.commands.recall.get_client")
+    def test_recall_invalid_alpha_fails(self, mock_get_client, clean_config):
+        self._setup_auth(clean_config)
+        result = runner.invoke(app, ["recall", "full", "test", "--alpha", "1.5"])
+        assert result.exit_code != 0
+
+    @patch("hydradb_cli.commands.recall.get_client")
+    def test_recall_invalid_mode_fails(self, mock_get_client, clean_config):
+        self._setup_auth(clean_config)
+        result = runner.invoke(app, ["recall", "full", "test", "--mode", "invalid"])
+        assert result.exit_code != 0
+
+    @patch("hydradb_cli.commands.recall.get_client")
+    def test_recall_invalid_max_results_fails(self, mock_get_client, clean_config):
+        self._setup_auth(clean_config)
+        result = runner.invoke(app, ["recall", "full", "test", "--max-results", "0"])
+        assert result.exit_code != 0
+
 
 class TestKnowledgeCommands:
     def _setup_auth(self, clean_config):
-        runner.invoke(app, ["login", "--api-key", "k", "--tenant-id", "t1"])
+        _login()
 
     @patch("hydradb_cli.commands.knowledge.get_client")
     def test_knowledge_upload_text(self, mock_get_client, clean_config):
@@ -333,7 +419,7 @@ class TestKnowledgeCommands:
             "knowledge", "upload-text", "--text", "Meeting notes content"
         ])
         assert result.exit_code == 0
-        assert "uploaded" in result.output
+        assert "uploaded" in result.output.lower()
 
     @patch("hydradb_cli.commands.knowledge.get_client")
     def test_knowledge_upload_text_sub_tenant_wiring(self, mock_get_client, clean_config):
@@ -360,6 +446,12 @@ class TestKnowledgeCommands:
         assert call_kwargs["text"] == "Q4 pricing: Starter $29, Pro $79"
 
     @patch("hydradb_cli.commands.knowledge.get_client")
+    def test_knowledge_upload_text_empty_fails(self, mock_get_client, clean_config):
+        self._setup_auth(clean_config)
+        result = runner.invoke(app, ["knowledge", "upload-text", "--text", ""])
+        assert result.exit_code != 0
+
+    @patch("hydradb_cli.commands.knowledge.get_client")
     def test_knowledge_delete(self, mock_get_client, clean_config):
         self._setup_auth(clean_config)
         mock_client = MagicMock()
@@ -371,10 +463,27 @@ class TestKnowledgeCommands:
         ])
         assert result.exit_code == 0
 
+    @patch("hydradb_cli.commands.knowledge.get_client")
+    def test_knowledge_verify(self, mock_get_client, clean_config):
+        self._setup_auth(clean_config)
+        mock_client = MagicMock()
+        mock_client.verify_processing.return_value = {
+            "statuses": [
+                {"file_id": "f1", "indexing_status": "indexed"},
+                {"file_id": "f2", "indexing_status": "errored", "error_code": "FILE_NOT_FOUND"},
+            ]
+        }
+        mock_get_client.return_value = mock_client
+
+        result = runner.invoke(app, ["knowledge", "verify", "f1", "f2"])
+        assert result.exit_code == 0
+        assert "indexed" in result.output
+        assert "not found" in result.output
+
 
 class TestFetchCommands:
     def _setup_auth(self, clean_config):
-        runner.invoke(app, ["login", "--api-key", "k", "--tenant-id", "t1"])
+        _login()
 
     @patch("hydradb_cli.commands.fetch.get_client")
     def test_fetch_sources(self, mock_get_client, clean_config):
@@ -408,6 +517,39 @@ class TestFetchCommands:
         result = runner.invoke(app, ["fetch", "content", "src_1"])
         assert result.exit_code == 0
         assert "Full document text" in result.output
+
+    @patch("hydradb_cli.commands.fetch.get_client")
+    def test_fetch_content_not_found(self, mock_get_client, clean_config):
+        self._setup_auth(clean_config)
+        from hydradb_cli.client import HydraDBClientError
+        mock_client = MagicMock()
+        mock_client.fetch_content.side_effect = HydraDBClientError(404, "File not found")
+        mock_get_client.return_value = mock_client
+
+        result = runner.invoke(app, ["fetch", "content", "bad-id"])
+        assert result.exit_code != 0
+        assert "not found" in result.output.lower()
+        assert "sub-tenant" in result.output.lower()
+
+    def test_fetch_sources_invalid_kind_fails(self, clean_config):
+        _login()
+        result = runner.invoke(app, ["fetch", "sources", "--kind", "invalid"])
+        assert result.exit_code != 0
+
+    def test_fetch_sources_invalid_page_fails(self, clean_config):
+        _login()
+        result = runner.invoke(app, ["fetch", "sources", "--page", "0"])
+        assert result.exit_code != 0
+
+    def test_fetch_content_invalid_mode_fails(self, clean_config):
+        _login()
+        result = runner.invoke(app, ["fetch", "content", "src_1", "--mode", "invalid"])
+        assert result.exit_code != 0
+
+    def test_fetch_content_empty_id_fails(self, clean_config):
+        _login()
+        result = runner.invoke(app, ["fetch", "content", ""])
+        assert result.exit_code != 0
 
 
 class TestOutputFormat:

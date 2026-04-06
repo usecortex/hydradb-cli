@@ -76,7 +76,17 @@ def set_value(
     if key not in VALID_KEYS:
         print_error(f"Unknown config key '{key}'. Valid keys: {', '.join(sorted(VALID_KEYS))}")
 
+    if key == "api_key" and not value.strip():
+        print_error("API key cannot be empty. Use 'hydradb logout' to remove credentials.")
+
+    if key == "base_url" and not value.strip():
+        print_error("Base URL cannot be empty.")
+
     save_config(**{key: value})
 
+    display_value = value
+    if key == "api_key" and len(value) > 12:
+        display_value = f"{value[:8]}...{value[-4:]}"
+
     result = {"success": True, "key": key, "message": f"Set {key} in config."}
-    print_result(result, lambda r: f"  Set '{key}' in ~/.hydradb/config.json")
+    print_result(result, lambda r: f"  Set '{key}' = '{display_value}' in ~/.hydradb/config.json")

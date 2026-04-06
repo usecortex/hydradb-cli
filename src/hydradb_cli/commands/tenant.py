@@ -6,7 +6,7 @@ import httpx
 import typer
 
 from hydradb_cli.client import HydraDBClientError
-from hydradb_cli.output import print_result
+from hydradb_cli.output import print_error, print_result
 from hydradb_cli.utils.common import get_client, handle_api_error, handle_network_error, require_tenant_id
 
 app = typer.Typer(help="Manage tenants.")
@@ -27,6 +27,12 @@ def create(
     ),
 ) -> None:
     """Create a new tenant."""
+    if not tenant_id.strip():
+        print_error("Tenant ID cannot be empty.")
+
+    if embeddings and embeddings_dimension is None:
+        print_error("--embeddings-dimension is required when --embeddings is set.")
+
     client = get_client()
     try:
         result = client.create_tenant(
@@ -43,12 +49,17 @@ def create(
 
 @app.command()
 def monitor(
-    tenant_id: Optional[str] = typer.Argument(
-        None, help="Tenant ID to monitor. Uses default if not specified."
+    tenant_id_arg: Optional[str] = typer.Argument(
+        None, help="Tenant ID to monitor. Uses default if not specified.",
+        metavar="TENANT_ID",
+    ),
+    tenant_id: Optional[str] = typer.Option(
+        None, "--tenant-id", help="Tenant ID (alternative to positional argument).",
+        hidden=True,
     ),
 ) -> None:
     """Get tenant infrastructure status and statistics."""
-    tid = require_tenant_id(tenant_id)
+    tid = require_tenant_id(tenant_id or tenant_id_arg)
     client = get_client()
     try:
         result = client.monitor_tenant(tid)
@@ -70,12 +81,17 @@ def monitor(
 
 @app.command("list-sub-tenants")
 def list_sub_tenants(
-    tenant_id: Optional[str] = typer.Argument(
-        None, help="Tenant ID. Uses default if not specified."
+    tenant_id_arg: Optional[str] = typer.Argument(
+        None, help="Tenant ID. Uses default if not specified.",
+        metavar="TENANT_ID",
+    ),
+    tenant_id: Optional[str] = typer.Option(
+        None, "--tenant-id", help="Tenant ID (alternative to positional argument).",
+        hidden=True,
     ),
 ) -> None:
     """List all sub-tenant IDs for a tenant."""
-    tid = require_tenant_id(tenant_id)
+    tid = require_tenant_id(tenant_id or tenant_id_arg)
     client = get_client()
     try:
         result = client.list_sub_tenants(tid)
@@ -107,6 +123,9 @@ def delete(
     ),
 ) -> None:
     """Delete a tenant and all its data. This action is irreversible."""
+    if not tenant_id.strip():
+        print_error("Tenant ID cannot be empty.")
+
     if not confirm:
         typer.confirm(
             f"Are you sure you want to delete tenant '{tenant_id}' and ALL its data?",

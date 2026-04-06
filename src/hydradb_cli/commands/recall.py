@@ -6,16 +6,21 @@ import httpx
 import typer
 
 from hydradb_cli.client import HydraDBClientError
-from hydradb_cli.output import print_result
+from hydradb_cli.output import print_error, print_result
 from hydradb_cli.utils.common import (
     get_client,
     handle_api_error,
     handle_network_error,
     require_tenant_id,
     resolve_sub_tenant_id,
+    validate_range,
 )
 
 app = typer.Typer(help="Recall context from HydraDB.")
+
+VALID_MODES = {"fast", "thinking"}
+VALID_OPERATORS = {"or", "and", "phrase"}
+VALID_SEARCH_MODES = {"sources", "memories"}
 
 
 def _format_recall_result(r: dict) -> str:
@@ -41,6 +46,30 @@ def _format_recall_result(r: dict) -> str:
         lines.append(f"  Graph: {len(query_paths)} entity path(s) found.")
 
     return "\n".join(lines)
+
+
+def _validate_recall_params(
+    query: str,
+    mode: Optional[str],
+    alpha: Optional[float],
+    recency_bias: Optional[float],
+    max_results: int,
+) -> None:
+    """Validate shared recall parameters before hitting the API."""
+    if not query.strip():
+        print_error("Query cannot be empty.")
+
+    if mode and mode not in VALID_MODES:
+        print_error(f"--mode must be one of: {', '.join(sorted(VALID_MODES))}. Got '{mode}'.")
+
+    if alpha is not None:
+        validate_range(alpha, "alpha", 0.0, 1.0)
+
+    if recency_bias is not None:
+        validate_range(recency_bias, "recency-bias", 0.0, 1.0)
+
+    if max_results < 1 or max_results > 50:
+        print_error(f"--max-results must be between 1 and 50, got {max_results}.")
 
 
 @app.command("full")
@@ -93,6 +122,8 @@ def full_recall(
 
         hydradb recall full "contract terms" --mode thinking --max-results 20 --tenant-id t1
     """
+    _validate_recall_params(query, mode, alpha, recency_bias, max_results)
+
     tid = require_tenant_id(tenant_id)
     stid = resolve_sub_tenant_id(sub_tenant_id)
     client = get_client()
@@ -112,6 +143,8 @@ def full_recall(
         print_result(result, _format_recall_result)
     except HydraDBClientError as e:
         handle_api_error(e)
+    except httpx.RequestError as e:
+        handle_network_error(e)
 
 
 @app.command("preferences")
@@ -165,6 +198,8 @@ def recall_preferences(
 
         hydradb recall preferences "communication style" --mode thinking --tenant-id t1
     """
+    _validate_recall_params(query, mode, alpha, recency_bias, max_results)
+
     tid = require_tenant_id(tenant_id)
     stid = resolve_sub_tenant_id(sub_tenant_id)
     client = get_client()
@@ -184,6 +219,8 @@ def recall_preferences(
         print_result(result, _format_recall_result)
     except HydraDBClientError as e:
         handle_api_error(e)
+    except httpx.RequestError as e:
+        handle_network_error(e)
 
 
 @app.command("keyword")
@@ -220,6 +257,18 @@ def keyword_recall(
 
         hydradb recall keyword "John Smith" --operator phrase --search-mode memories --tenant-id t1
     """
+    if not query.strip():
+        print_error("Query cannot be empty.")
+
+    if operator and operator not in VALID_OPERATORS:
+        print_error(f"--operator must be one of: {', '.join(sorted(VALID_OPERATORS))}. Got '{operator}'.")
+
+    if search_mode and search_mode not in VALID_SEARCH_MODES:
+        print_error(f"--search-mode must be one of: {', '.join(sorted(VALID_SEARCH_MODES))}. Got '{search_mode}'.")
+
+    if max_results < 1:
+        print_error(f"--max-results must be at least 1, got {max_results}.")
+
     tid = require_tenant_id(tenant_id)
     stid = resolve_sub_tenant_id(sub_tenant_id)
     client = get_client()
@@ -236,3 +285,5 @@ def keyword_recall(
         print_result(result, _format_recall_result)
     except HydraDBClientError as e:
         handle_api_error(e)
+    except httpx.RequestError as e:
+        handle_network_error(e)

@@ -2,18 +2,23 @@
 
 from typing import Optional
 
+import httpx
 import typer
 
 from hydradb_cli.client import HydraDBClientError
-from hydradb_cli.output import print_result
+from hydradb_cli.output import print_error, print_result
 from hydradb_cli.utils.common import (
     get_client,
     handle_api_error,
+    handle_network_error,
     require_tenant_id,
     resolve_sub_tenant_id,
 )
 
 app = typer.Typer(help="Fetch and inspect stored data.")
+
+VALID_FETCH_MODES = {"content", "url", "both"}
+VALID_SOURCE_KINDS = {"knowledge", "memories"}
 
 
 @app.command()
@@ -42,6 +47,12 @@ def content(
 
         hydradb fetch content source_abc123 --mode url --tenant-id my-tenant
     """
+    if not source_id.strip():
+        print_error("Source ID cannot be empty.")
+
+    if mode not in VALID_FETCH_MODES:
+        print_error(f"--mode must be one of: {', '.join(sorted(VALID_FETCH_MODES))}. Got '{mode}'.")
+
     tid = require_tenant_id(tenant_id)
     stid = resolve_sub_tenant_id(sub_tenant_id)
     client = get_client()
@@ -57,6 +68,7 @@ def content(
         def fmt(r: dict) -> str:
             lines = [f"  Source: {source_id}"]
             content_text = r.get("content", "")
+            content_b64 = r.get("content_base64", "")
             url = r.get("presigned_url", "")
             content_type = r.get("content_type", "")
             size = r.get("size_bytes")
@@ -69,11 +81,21 @@ def content(
                 lines.append(f"  URL: {url}")
             if content_text:
                 lines.append(f"\n{content_text}")
+            elif content_b64:
+                lines.append(f"\n  [Binary content, {len(content_b64)} chars base64-encoded]")
             return "\n".join(lines)
 
         print_result(result, fmt)
     except HydraDBClientError as e:
-        handle_api_error(e)
+        if e.status_code == 404:
+            print_error(
+                f"Source '{source_id}' not found. This can happen if the file was uploaded "
+                f"under a different sub-tenant. Try specifying --sub-tenant-id explicitly."
+            )
+        else:
+            handle_api_error(e)
+    except httpx.RequestError as e:
+        handle_network_error(e)
 
 
 @app.command()
@@ -107,6 +129,15 @@ def sources(
 
         hydradb fetch sources --kind knowledge --page-size 20 --tenant-id my-tenant
     """
+    if kind and kind not in VALID_SOURCE_KINDS:
+        print_error(f"--kind must be one of: {', '.join(sorted(VALID_SOURCE_KINDS))}. Got '{kind}'.")
+
+    if page is not None and page < 1:
+        print_error(f"--page must be at least 1, got {page}.")
+
+    if page_size is not None and (page_size < 1 or page_size > 100):
+        print_error(f"--page-size must be between 1 and 100, got {page_size}.")
+
     tid = require_tenant_id(tenant_id)
     stid = resolve_sub_tenant_id(sub_tenant_id)
     client = get_client()
@@ -121,7 +152,6 @@ def sources(
         )
 
         def fmt(r: dict) -> str:
-            # Handle both knowledge sources and memories
             sources_list = r.get("sources", [])
             memories_list = r.get("user_memories", [])
 
@@ -135,8 +165,12 @@ def sources(
                     type_str = f" ({stype})" if stype else ""
                     lines.append(f"  {i}. [{sid}]{title_str}{type_str}")
                 total = r.get("total")
+                pagination = r.get("pagination", {})
                 if total is not None:
                     lines.append(f"\n  Total: {total}")
+                if pagination.get("has_next"):
+                    current = pagination.get("page", 1)
+                    lines.append(f"  Next page: --page {current + 1}")
                 return "\n".join(lines)
 
             if memories_list:
@@ -153,6 +187,8 @@ def sources(
         print_result(result, fmt)
     except HydraDBClientError as e:
         handle_api_error(e)
+    except httpx.RequestError as e:
+        handle_network_error(e)
 
 
 @app.command()
@@ -183,6 +219,12 @@ def relations(
 
         hydradb fetch relations mem_123 --is-memory --tenant-id my-tenant
     """
+    if not source_id.strip():
+        print_error("Source ID cannot be empty.")
+
+    if limit is not None and limit < 1:
+        print_error(f"--limit must be at least 1, got {limit}.")
+
     tid = require_tenant_id(tenant_id)
     stid = resolve_sub_tenant_id(sub_tenant_id)
     client = get_client()
@@ -214,3 +256,5 @@ def relations(
         print_result(result, fmt)
     except HydraDBClientError as e:
         handle_api_error(e)
+    except httpx.RequestError as e:
+        handle_network_error(e)
