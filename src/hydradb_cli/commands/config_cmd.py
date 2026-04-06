@@ -3,9 +3,10 @@
 from typing import Optional
 
 import typer
+from rich.panel import Panel
 
 from hydradb_cli.config import get_full_config, save_config
-from hydradb_cli.output import print_error, print_json, print_result, get_output_format
+from hydradb_cli.output import console, get_output_format, make_kv_table, print_error, print_json, print_result
 from hydradb_cli.utils.common import mask_api_key
 
 app = typer.Typer(help="View and manage CLI configuration.")
@@ -36,25 +37,34 @@ def show() -> None:
         print_json(safe_cfg)
         return
 
-    typer.echo("  HydraDB CLI Configuration\n")
+    pairs: list[tuple[str, str]] = []
 
     api_key = cfg.get("api_key")
     if api_key:
         masked = mask_api_key(api_key)
-        typer.echo(f"  api_key:        {masked} (source: {cfg['api_key_source']})")
+        pairs.append(("api_key", f"{masked} [dim]({cfg['api_key_source']})[/dim]"))
     else:
-        typer.echo("  api_key:        (not set)")
+        pairs.append(("api_key", "[dim](not set)[/dim]"))
 
     tenant_id = cfg.get("tenant_id")
-    typer.echo(f"  tenant_id:      {tenant_id or '(not set)'}" + (
-        f" (source: {cfg['tenant_id_source']})" if tenant_id else ""
-    ))
+    if tenant_id:
+        pairs.append(("tenant_id", f"{tenant_id} [dim]({cfg['tenant_id_source']})[/dim]"))
+    else:
+        pairs.append(("tenant_id", "[dim](not set)[/dim]"))
 
     sub_tenant = cfg.get("sub_tenant_id")
-    typer.echo(f"  sub_tenant_id:  {sub_tenant or '(not set)'}")
+    pairs.append(("sub_tenant_id", sub_tenant or "[dim](not set)[/dim]"))
+    pairs.append(("base_url", cfg["base_url"]))
+    pairs.append(("config_file", cfg["config_file"]))
 
-    typer.echo(f"  base_url:       {cfg['base_url']}")
-    typer.echo(f"\n  Config file:    {cfg['config_file']}")
+    table = make_kv_table(pairs)
+    panel = Panel(
+        table,
+        title="[bold cyan]/// Configuration[/bold cyan]",
+        border_style="cyan",
+        padding=(0, 1),
+    )
+    console.print(panel)
 
 
 @app.command("set")
@@ -89,4 +99,7 @@ def set_value(
         display_value = f"{value[:8]}...{value[-4:]}"
 
     result = {"success": True, "key": key, "message": f"Set {key} in config."}
-    print_result(result, lambda r: f"  Set '{key}' = '{display_value}' in ~/.hydradb/config.json")
+    print_result(
+        result,
+        lambda r: f"[green]\u2713[/green] Set [cyan]{key}[/cyan] = [bold]{display_value}[/bold] in ~/.hydradb/config.json",
+    )

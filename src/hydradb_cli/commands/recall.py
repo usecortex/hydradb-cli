@@ -4,9 +4,12 @@ from typing import Optional
 
 import httpx
 import typer
+from rich.console import Group
+from rich.panel import Panel
+from rich.text import Text
 
 from hydradb_cli.client import HydraDBClientError
-from hydradb_cli.output import print_error, print_result
+from hydradb_cli.output import print_error, print_result, spinner
 from hydradb_cli.utils.common import (
     get_client,
     handle_api_error,
@@ -23,29 +26,41 @@ VALID_OPERATORS = {"or", "and", "phrase"}
 VALID_SEARCH_MODES = {"sources", "memories"}
 
 
-def _format_recall_result(r: dict) -> str:
+def _format_recall_result(r: dict):
     """Human-readable formatter for recall responses."""
     chunks = r.get("chunks", [])
     if not chunks:
-        return "  No relevant results found."
+        return "[dim]No relevant results found.[/dim]"
 
-    lines = [f"  Found {len(chunks)} result(s):\n"]
+    panels = []
     for i, chunk in enumerate(chunks, 1):
         score = chunk.get("relevancy_score")
-        score_str = f" ({score:.0%})" if score is not None else ""
-        title = chunk.get("source_title", "")
-        title_str = f" — {title}" if title else ""
+        score_str = f" \u2022 {score:.0%}" if score is not None else ""
+        title_text = chunk.get("source_title", "")
+        title_str = f" \u2014 {title_text}" if title_text else ""
+
         content = chunk.get("chunk_content", "")
-        preview = content[:200] + "..." if len(content) > 200 else content
-        lines.append(f"  {i}.{score_str}{title_str}")
-        lines.append(f"     {preview}\n")
+        preview = content[:300] + "..." if len(content) > 300 else content
+
+        panel_title = f"[bold]{i}[/bold]{score_str}{title_str}"
+        panels.append(
+            Panel(
+                preview,
+                title=panel_title,
+                title_align="left",
+                border_style="cyan",
+                padding=(0, 1),
+            )
+        )
 
     graph = r.get("graph_context", {})
     query_paths = graph.get("query_paths", [])
     if query_paths:
-        lines.append(f"  Graph: {len(query_paths)} entity path(s) found.")
+        footer = Text(f"  Graph: {len(query_paths)} entity path(s) found.", style="dim")
+        panels.append(footer)
 
-    return "\n".join(lines)
+    header = Text(f"  Found {len(chunks)} result(s)", style="bold")
+    return Group(header, *panels)
 
 
 def _validate_recall_params(
@@ -129,17 +144,18 @@ def full_recall(
     client = get_client()
 
     try:
-        result = client.full_recall(
-            tenant_id=tid,
-            query=query,
-            sub_tenant_id=stid,
-            max_results=max_results,
-            mode=mode,
-            alpha=alpha,
-            recency_bias=recency_bias,
-            graph_context=graph_context,
-            additional_context=additional_context,
-        )
+        with spinner("Searching..."):
+            result = client.full_recall(
+                tenant_id=tid,
+                query=query,
+                sub_tenant_id=stid,
+                max_results=max_results,
+                mode=mode,
+                alpha=alpha,
+                recency_bias=recency_bias,
+                graph_context=graph_context,
+                additional_context=additional_context,
+            )
         print_result(result, _format_recall_result)
     except HydraDBClientError as e:
         handle_api_error(e)
@@ -205,17 +221,18 @@ def recall_preferences(
     client = get_client()
 
     try:
-        result = client.recall_preferences(
-            tenant_id=tid,
-            query=query,
-            sub_tenant_id=stid,
-            max_results=max_results,
-            mode=mode,
-            alpha=alpha,
-            recency_bias=recency_bias,
-            graph_context=graph_context,
-            additional_context=additional_context,
-        )
+        with spinner("Searching memories..."):
+            result = client.recall_preferences(
+                tenant_id=tid,
+                query=query,
+                sub_tenant_id=stid,
+                max_results=max_results,
+                mode=mode,
+                alpha=alpha,
+                recency_bias=recency_bias,
+                graph_context=graph_context,
+                additional_context=additional_context,
+            )
         print_result(result, _format_recall_result)
     except HydraDBClientError as e:
         handle_api_error(e)
@@ -274,14 +291,15 @@ def keyword_recall(
     client = get_client()
 
     try:
-        result = client.boolean_recall(
-            tenant_id=tid,
-            query=query,
-            sub_tenant_id=stid,
-            operator=operator,
-            max_results=max_results,
-            search_mode=search_mode,
-        )
+        with spinner("Searching..."):
+            result = client.boolean_recall(
+                tenant_id=tid,
+                query=query,
+                sub_tenant_id=stid,
+                operator=operator,
+                max_results=max_results,
+                search_mode=search_mode,
+            )
         print_result(result, _format_recall_result)
     except HydraDBClientError as e:
         handle_api_error(e)

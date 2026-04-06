@@ -110,7 +110,7 @@ class TestLogin:
                 "login", "--api-key", "bad-key", "--tenant-id", "t1"
             ])
         assert result.exit_code == 0
-        assert "Warning" in result.output
+        assert "rejected" in result.output
 
 
 class TestLogout:

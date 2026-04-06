@@ -4,9 +4,12 @@ from typing import Optional
 
 import httpx
 import typer
+from rich.console import Group
+from rich.panel import Panel
+from rich.text import Text
 
 from hydradb_cli.client import HydraDBClientError
-from hydradb_cli.output import print_error, print_result
+from hydradb_cli.output import make_table, print_error, print_result, spinner
 from hydradb_cli.utils.common import (
     get_client,
     handle_api_error,
@@ -58,32 +61,44 @@ def content(
     client = get_client()
 
     try:
-        result = client.fetch_content(
-            tenant_id=tid,
-            source_id=source_id,
-            sub_tenant_id=stid,
-            mode=mode,
-        )
+        with spinner("Fetching content..."):
+            result = client.fetch_content(
+                tenant_id=tid,
+                source_id=source_id,
+                sub_tenant_id=stid,
+                mode=mode,
+            )
 
-        def fmt(r: dict) -> str:
-            lines = [f"  Source: {source_id}"]
+        def fmt(r: dict):
             content_text = r.get("content", "")
             content_b64 = r.get("content_base64", "")
             url = r.get("presigned_url", "")
             content_type = r.get("content_type", "")
             size = r.get("size_bytes")
 
+            meta_parts = [f"[cyan]Source:[/cyan] {source_id}"]
             if content_type:
-                lines.append(f"  Type: {content_type}")
+                meta_parts.append(f"[cyan]Type:[/cyan] {content_type}")
             if size is not None:
-                lines.append(f"  Size: {size} bytes")
+                meta_parts.append(f"[cyan]Size:[/cyan] {size} bytes")
             if url:
-                lines.append(f"  URL: {url}")
+                meta_parts.append(f"[cyan]URL:[/cyan] {url}")
+
+            meta = "\n".join(meta_parts)
+
             if content_text:
-                lines.append(f"\n{content_text}")
+                body = f"{meta}\n\n{content_text}"
             elif content_b64:
-                lines.append(f"\n  [Binary content, {len(content_b64)} chars base64-encoded]")
-            return "\n".join(lines)
+                body = f"{meta}\n\n[dim](Binary content, {len(content_b64)} chars base64-encoded)[/dim]"
+            else:
+                body = meta
+
+            return Panel(
+                body,
+                title=f"[bold cyan]/// Source Content[/bold cyan]",
+                border_style="cyan",
+                padding=(0, 1),
+            )
 
         print_result(result, fmt)
     except HydraDBClientError as e:
@@ -143,46 +158,60 @@ def sources(
     client = get_client()
 
     try:
-        result = client.list_data(
-            tenant_id=tid,
-            sub_tenant_id=stid,
-            kind=kind,
-            page=page,
-            page_size=page_size,
-        )
+        with spinner("Fetching sources..."):
+            result = client.list_data(
+                tenant_id=tid,
+                sub_tenant_id=stid,
+                kind=kind,
+                page=page,
+                page_size=page_size,
+            )
 
-        def fmt(r: dict) -> str:
+        def fmt(r: dict):
             sources_list = r.get("sources", [])
             memories_list = r.get("user_memories", [])
 
             if sources_list:
-                lines = [f"  Found {len(sources_list)} source(s):\n"]
+                rows = []
                 for i, src in enumerate(sources_list, 1):
                     sid = src.get("id", "unknown")
-                    title = src.get("title", "")
+                    src_title = src.get("title", "")
                     stype = src.get("type", "")
-                    title_str = f" — {title}" if title else ""
-                    type_str = f" ({stype})" if stype else ""
-                    lines.append(f"  {i}. [{sid}]{title_str}{type_str}")
+                    rows.append([str(i), sid, src_title, stype])
+
+                table = make_table(
+                    "#", "Source ID", "Title", "Type",
+                    rows=rows,
+                    title=f"Found {len(sources_list)} source(s)",
+                )
+
+                parts = [table]
                 total = r.get("total")
                 pagination = r.get("pagination", {})
+                footer_parts = []
                 if total is not None:
-                    lines.append(f"\n  Total: {total}")
+                    footer_parts.append(f"Total: {total}")
                 if pagination.get("has_next"):
                     current = pagination.get("page", 1)
-                    lines.append(f"  Next page: --page {current + 1}")
-                return "\n".join(lines)
+                    footer_parts.append(f"Next page: --page {current + 1}")
+                if footer_parts:
+                    parts.append(Text("  " + "  |  ".join(footer_parts), style="dim"))
+                return Group(*parts)
 
             if memories_list:
-                lines = [f"  Found {len(memories_list)} memory/memories:\n"]
+                rows = []
                 for i, mem in enumerate(memories_list, 1):
                     mid = mem.get("memory_id", "unknown")
-                    content = mem.get("memory_content", "")
-                    preview = content[:100] + "..." if len(content) > 100 else content
-                    lines.append(f"  {i}. [{mid}] {preview}")
-                return "\n".join(lines)
+                    mem_content = mem.get("memory_content", "")
+                    preview = mem_content[:100] + "..." if len(mem_content) > 100 else mem_content
+                    rows.append([str(i), mid, preview])
+                return make_table(
+                    "#", "Memory ID", "Content",
+                    rows=rows,
+                    title=f"Found {len(memories_list)} memory/memories",
+                )
 
-            return "  No sources found."
+            return "[dim]No sources found.[/dim]"
 
         print_result(result, fmt)
     except HydraDBClientError as e:
@@ -230,28 +259,34 @@ def relations(
     client = get_client()
 
     try:
-        result = client.graph_relations(
-            tenant_id=tid,
-            source_id=source_id,
-            sub_tenant_id=stid,
-            is_memory=is_memory,
-            limit=limit,
-        )
+        with spinner("Fetching graph relations..."):
+            result = client.graph_relations(
+                tenant_id=tid,
+                source_id=source_id,
+                sub_tenant_id=stid,
+                is_memory=is_memory,
+                limit=limit,
+            )
 
-        def fmt(r: dict) -> str:
+        def fmt(r: dict):
             relations_list = r.get("relations", [])
             if not relations_list:
-                return f"  No graph relations found for source '{source_id}'."
+                return f"[dim]No graph relations found for source '{source_id}'.[/dim]"
 
-            lines = [f"  Graph relations for '{source_id}':\n"]
+            rows = []
             for rel in relations_list:
                 triplets = rel.get("triplets", [])
                 for t in triplets:
                     src = t.get("source", {}).get("name", "?")
                     pred = t.get("relation", {}).get("canonical_predicate", "related to")
                     tgt = t.get("target", {}).get("name", "?")
-                    lines.append(f"  ({src}) --[{pred}]--> ({tgt})")
-            return "\n".join(lines)
+                    rows.append([src, pred, tgt])
+
+            return make_table(
+                "Subject", "Predicate", "Object",
+                rows=rows,
+                title=f"Graph relations for '{source_id}'",
+            )
 
         print_result(result, fmt)
     except HydraDBClientError as e:

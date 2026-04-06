@@ -1,17 +1,38 @@
 """Output formatting for HydraDB CLI.
 
 Supports two modes:
-- human: Rich-formatted tables and text (default)
+- human: Rich-formatted tables, panels, and styled text (default)
 - json: Raw JSON for agent/script consumption
 """
 
 import json
-from typing import Any, Callable, Optional
+from contextlib import contextmanager
+from typing import Any, Callable, Optional, Union
 
 import typer
+from rich.console import Console, RenderableType
+from rich.panel import Panel
+from rich.table import Table
+from rich.text import Text
+from rich.theme import Theme
 
-# Global output format state
+_THEME = Theme({
+    "hydra.brand": "bold cyan",
+    "hydra.success": "green",
+    "hydra.error": "bold red",
+    "hydra.warning": "yellow",
+    "hydra.dim": "dim",
+    "hydra.key": "cyan",
+    "hydra.value": "white",
+    "hydra.accent": "bold cyan",
+})
+
+console = Console(theme=_THEME, highlight=False)
+err_console = Console(stderr=True, theme=_THEME, highlight=False)
+
 _output_format: str = "human"
+
+BRAND = "[bold cyan]///[/bold cyan]"
 
 
 def set_output_format(fmt: str) -> None:
@@ -23,18 +44,31 @@ def get_output_format() -> str:
     return _output_format
 
 
+@contextmanager
+def spinner(message: str):
+    """Show a dots spinner during an operation. No-op in JSON mode or non-TTY."""
+    if _output_format == "json" or not console.is_terminal:
+        yield
+    else:
+        with console.status(f"[dim]{message}[/dim]", spinner="dots"):
+            yield
+
+
 def print_json(data: Any) -> None:
     """Print data as formatted JSON to stdout."""
     typer.echo(json.dumps(data, indent=2, default=str))
 
 
 def print_success(message: str) -> None:
-    """Print a success message in human mode. In json mode, this is a no-op.
-
-    For json mode, use print_result() to emit a single JSON response per command.
-    """
+    """Print a success message with a checkmark in human mode."""
     if _output_format != "json":
-        typer.echo(f"  {message}")
+        console.print(f"  [hydra.success]\u2713[/hydra.success] {message}")
+
+
+def print_warning(message: str) -> None:
+    """Print a warning message in human mode."""
+    if _output_format != "json":
+        console.print(f"  [hydra.warning]![/hydra.warning] {message}")
 
 
 def print_error(message: str, exit_code: int = 1) -> None:
@@ -42,28 +76,33 @@ def print_error(message: str, exit_code: int = 1) -> None:
     if _output_format == "json":
         typer.echo(json.dumps({"success": False, "error": message}))
     else:
-        typer.echo(f"  Error: {message}", err=True)
+        err_console.print(f"  [hydra.error]\u2717 Error:[/hydra.error] {message}")
     raise typer.Exit(code=exit_code)
 
 
-def print_result(data: Any, human_formatter: Optional[Callable[[Any], str]] = None) -> None:
+def print_result(
+    data: Any,
+    human_formatter: Optional[Callable[[Any], Union[str, RenderableType]]] = None,
+) -> None:
     """Print API result — JSON in json mode, formatted in human mode.
 
-    Args:
-        data: The raw API response dict.
-        human_formatter: Optional callable(data) -> str for human-readable output.
+    The human_formatter may return a plain string or any Rich renderable
+    (Panel, Table, Text, Group, etc.).
     """
     if _output_format == "json":
         print_json(data)
     elif human_formatter:
-        typer.echo(human_formatter(data))
+        result = human_formatter(data)
+        if isinstance(result, str):
+            console.print(result)
+        else:
+            console.print(result)
     else:
-        # Fallback: pretty-print JSON even in human mode
         print_json(data)
 
 
 def print_table(headers: list[str], rows: list[list[str]]) -> None:
-    """Print a simple table in human mode, or JSON array in json mode."""
+    """Print a Rich table in human mode, or JSON array in json mode."""
     if _output_format == "json":
         items = []
         for row in rows:
@@ -72,25 +111,58 @@ def print_table(headers: list[str], rows: list[list[str]]) -> None:
         return
 
     if not rows:
-        typer.echo("  No results.")
+        console.print("  [dim]No results.[/dim]")
         return
 
-    # Calculate column widths
-    col_widths = [len(h) for h in headers]
+    table = Table(
+        show_header=True,
+        header_style="bold cyan",
+        border_style="dim",
+        pad_edge=True,
+        expand=False,
+    )
+    for h in headers:
+        table.add_column(h)
     for row in rows:
-        for i, cell in enumerate(row):
-            if i < len(col_widths):
-                col_widths[i] = max(col_widths[i], len(str(cell)))
+        table.add_row(*[str(c) for c in row])
+    console.print(table)
 
-    # Print header
-    header_line = "  ".join(h.ljust(col_widths[i]) for i, h in enumerate(headers))
-    typer.echo(f"  {header_line}")
-    typer.echo(f"  {'  '.join('-' * w for w in col_widths)}")
 
-    # Print rows
+def make_table(
+    *columns: str,
+    rows: list[list[str]],
+    title: Optional[str] = None,
+    border_style: str = "dim",
+) -> Table:
+    """Build a Rich Table without printing it — callers compose into panels etc."""
+    table = Table(
+        show_header=True,
+        header_style="bold cyan",
+        border_style=border_style,
+        pad_edge=True,
+        expand=False,
+        title=title,
+        title_style="bold",
+    )
+    for col in columns:
+        table.add_column(col)
     for row in rows:
-        row_line = "  ".join(
-            str(cell).ljust(col_widths[i]) if i < len(col_widths) else str(cell)
-            for i, cell in enumerate(row)
-        )
-        typer.echo(f"  {row_line}")
+        table.add_row(*[str(c) for c in row])
+    return table
+
+
+def make_kv_table(pairs: list[tuple[str, str]], title: Optional[str] = None) -> Table:
+    """Build a two-column key-value table."""
+    table = Table(
+        show_header=False,
+        border_style="dim",
+        pad_edge=True,
+        expand=False,
+        title=title,
+        title_style="bold",
+    )
+    table.add_column("Key", style="cyan", no_wrap=True)
+    table.add_column("Value")
+    for k, v in pairs:
+        table.add_row(k, v)
+    return table

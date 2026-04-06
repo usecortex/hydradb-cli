@@ -5,9 +5,10 @@ from typing import Optional
 
 import httpx
 import typer
+from rich.panel import Panel
 
 from hydradb_cli.client import HydraDBClientError
-from hydradb_cli.output import print_error, print_result
+from hydradb_cli.output import make_table, print_error, print_result, spinner
 from hydradb_cli.utils.common import (
     get_client,
     handle_api_error,
@@ -104,35 +105,38 @@ def add(
     client = get_client()
 
     try:
-        result = client.add_memory(
-            tenant_id=tid,
-            text=text,
-            sub_tenant_id=stid,
-            infer=infer,
-            is_markdown=markdown,
-            title=title,
-            source_id=source_id,
-            user_name=user_name,
-            upsert=upsert,
-        )
+        with spinner("Adding memory..."):
+            result = client.add_memory(
+                tenant_id=tid,
+                text=text,
+                sub_tenant_id=stid,
+                infer=infer,
+                is_markdown=markdown,
+                title=title,
+                source_id=source_id,
+                user_name=user_name,
+                upsert=upsert,
+            )
 
-        def fmt(r: dict) -> str:
+        def fmt(r: dict):
             success_count = r.get("success_count", 0)
             failed_count = r.get("failed_count", 0)
             preview = text[:80] + "..." if len(text) > 80 else text
-            lines = [
-                f"  Memory added ({success_count} success, {failed_count} failed)",
-                f"  Content: \"{preview}\"",
-            ]
+
+            status = "green" if failed_count == 0 else "yellow"
+            mark = "\u2713" if failed_count == 0 else "!"
+            header = f"[{status}]{mark}[/{status}] Memory added ({success_count} success, {failed_count} failed)"
+
+            lines = [header, f"[dim]\"{preview}\"[/dim]"]
             results = r.get("results", [])
             for item in results:
                 sid = item.get("source_id", "unknown")
-                status = item.get("status", "unknown")
+                item_status = item.get("status", "unknown")
                 error = item.get("error")
-                lines.append(f"  Source ID: {sid} (status: {status})")
+                lines.append(f"[cyan]Source ID:[/cyan] {sid} [dim]({item_status})[/dim]")
                 if error:
-                    lines.append(f"  Error: {error}")
-            return "\n".join(lines)
+                    lines.append(f"[red]Error:[/red] {error}")
+            return Panel("\n".join(lines), border_style=status, padding=(0, 1))
 
         print_result(result, fmt)
     except HydraDBClientError as e:
@@ -161,20 +165,24 @@ def list_memories(
     client = get_client()
 
     try:
-        result = client.list_memories(tenant_id=tid, sub_tenant_id=stid)
+        with spinner("Fetching memories..."):
+            result = client.list_memories(tenant_id=tid, sub_tenant_id=stid)
 
-        def fmt(r: dict) -> str:
+        def fmt(r: dict):
             memories = r.get("user_memories", [])
             if not memories:
-                return "  No memories found."
-            lines = [f"  Found {len(memories)} memories:\n"]
+                return "[dim]No memories found.[/dim]"
+            rows = []
             for i, mem in enumerate(memories, 1):
                 mid = mem.get("memory_id", "unknown")
                 content = mem.get("memory_content", "")
-                preview = content[:120] + "..." if len(content) > 120 else content
-                lines.append(f"  {i}. [{mid}]")
-                lines.append(f"     {preview}\n")
-            return "\n".join(lines)
+                preview = content[:100] + "..." if len(content) > 100 else content
+                rows.append([str(i), mid, preview])
+            return make_table(
+                "#", "Memory ID", "Content",
+                rows=rows,
+                title=f"Found {len(memories)} memories",
+            )
 
         print_result(result, fmt)
     except HydraDBClientError as e:
@@ -221,21 +229,22 @@ def delete(
     client = get_client()
 
     try:
-        result = client.delete_memory(
-            tenant_id=tid,
-            memory_id=memory_id,
-            sub_tenant_id=stid,
-        )
+        with spinner("Deleting memory..."):
+            result = client.delete_memory(
+                tenant_id=tid,
+                memory_id=memory_id,
+                sub_tenant_id=stid,
+            )
 
         def fmt(r: dict) -> str:
             deleted = r.get("user_memory_deleted")
             success = r.get("success")
             if deleted and success:
-                return f"  Memory '{memory_id}' deleted."
+                return f"[green]\u2713[/green] Memory [bold]{memory_id}[/bold] deleted."
             elif success and not deleted:
-                return f"  Memory '{memory_id}' was not found or already deleted."
+                return f"[yellow]![/yellow] Memory [bold]{memory_id}[/bold] was not found or already deleted."
             else:
-                return f"  Could not confirm deletion of memory '{memory_id}'."
+                return f"[red]\u2717[/red] Could not confirm deletion of memory [bold]{memory_id}[/bold]."
 
         print_result(result, fmt)
     except HydraDBClientError as e:
