@@ -1,0 +1,49 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "hydradb-cli"
+version = "0.1.0"
+authors = [
+    { name = "HydraDB", email = "founders@hydradb.com" },
+]
+description = "Agent-friendly CLI for HydraDB — memory, recall, and ingestion from the terminal"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { file = "LICENSE" }
+keywords = ["hydradb", "cli", "ai", "memory", "recall", "agent"]
+
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Intended Audience :: Developers",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Environment :: Console",
+    "Typing :: Typed",
+]
+
+dependencies = [
+    "typer>=0.9,<1",
+    "httpx>=0.24",
+    "rich>=13.0",
+]
+
+[project.scripts]
+hydradb = "hydradb_cli.main:app"
+
+[project.urls]
+Homepage = "https://hydradb.com/"
+Documentation = "https://docs.hydradb.com/"
+Repository = "https://github.com/usecortex/hydradb-cli"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
