@@ -1,6 +1,7 @@
 """Tests for hydradb_cli.client module."""
 
 import json
+import uuid
 from unittest.mock import MagicMock, patch
 
 import httpx
@@ -229,7 +230,6 @@ class TestKnowledgeMethods:
             data = mock_post.call_args[1]["data"]
             app_sources = json.loads(data["app_sources"])
             # id should be a valid UUID string
-            import uuid
             uuid.UUID(app_sources["id"])  # raises ValueError if invalid
             assert app_sources["tenant_id"] == "t1"
             assert app_sources["sub_tenant_id"] == "t1"

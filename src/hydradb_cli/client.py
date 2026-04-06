@@ -276,6 +276,8 @@ class HydraDBClient:
             source["title"] = title
 
         data: dict[str, Any] = {"tenant_id": tenant_id}
+        # sub_tenant_id in form data is optional; the source model requires it
+        # and defaults to tenant_id above when the caller doesn't provide one.
         if sub_tenant_id is not None:
             data["sub_tenant_id"] = sub_tenant_id
         data["app_sources"] = json.dumps(source)
