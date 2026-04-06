@@ -4,118 +4,161 @@ Agent-friendly command line interface for [HydraDB](https://hydradb.com) -- memo
 
 HydraDB is plug-and-play context infrastructure for AI. The CLI gives agents and developers a lightweight, scriptable interface to all HydraDB operations without MCP setup or server dependencies.
 
-## Why a CLI?
+## Prerequisites
 
-> "Agents are better at using CLIs than MCPs" -- [Composio](https://composio.dev/cli)
-
-- **No server required** -- single `pip install`, ready to use
-- **Agent-native** -- JSON output mode for LLM agents and automation
-- **Stateless commands** -- every command is deterministic and composable
-- **Lightweight** -- no MCP, no Docker, no configuration servers
+- **Python 3.10 or higher** -- check with `python3 --version`
+- **pip** -- Python package installer (ships with Python)
+- **A HydraDB account** -- sign up at [hydradb.com](https://hydradb.com) to get your API key
+- **A tenant ID** -- created during onboarding or via `hydradb tenant create`
 
 ## Installation
 
-Install from source:
+### From source (recommended for now)
 
 ```bash
 git clone https://github.com/usecortex/hydradb-cli.git
 cd hydradb-cli
-pip install -e .
+pip install .
 ```
 
-Verify the installation:
+### For development
+
+```bash
+git clone https://github.com/usecortex/hydradb-cli.git
+cd hydradb-cli
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -e .
+pip install pytest
+```
+
+### Verify the installation
 
 ```bash
 hydradb --version
+# hydradb-cli 0.1.0
 ```
 
-## Quick Start
+### Shell completion (optional)
 
-### 1. Authenticate
+```bash
+hydradb --install-completion
+```
+
+## Setup
+
+### Step 1: Get your API key
+
+Log in to [hydradb.com](https://hydradb.com) and copy your API key from the dashboard. It starts with `sk_prod_` or `sk_test_`.
+
+### Step 2: Authenticate
 
 ```bash
 # Interactive (prompts for API key)
 hydradb login --tenant-id my-tenant
 
-# Non-interactive (for agents and scripts)
-hydradb login --api-key YOUR_API_KEY --tenant-id my-tenant
+# Non-interactive (for agents and CI/CD)
+hydradb login --api-key sk_prod_YOUR_KEY --tenant-id my-tenant
+```
 
-# Or use environment variables (no login needed)
-export HYDRA_DB_API_KEY=your_api_key
+This saves your credentials to `~/.hydradb/config.json` (file permissions `600`).
+
+### Step 3: Verify
+
+```bash
+hydradb whoami
+```
+
+You should see your tenant ID and a masked API key.
+
+### Alternative: Environment variables (no login needed)
+
+If you prefer not to store credentials on disk, set environment variables instead:
+
+```bash
+export HYDRA_DB_API_KEY=sk_prod_YOUR_KEY
 export HYDRA_DB_TENANT_ID=my-tenant
 ```
 
-### 2. Add a memory
+## Quick Start
 
 ```bash
+# Store a user preference
 hydradb memories add --text "User prefers dark mode and weekly email summaries"
-```
 
-### 3. Recall context
-
-```bash
+# Recall it later
 hydradb recall preferences "What does the user prefer?"
-```
 
-### 4. Upload knowledge
-
-```bash
+# Upload a document to the knowledge base
 hydradb knowledge upload ./report.pdf
-```
 
-### 5. Search knowledge
-
-```bash
+# Search the knowledge base
 hydradb recall full "What did the team say about pricing?"
 ```
 
-## Command Reference
+## Commands
+
+Below is the full command tree. Every command supports `--help` for detailed usage.
+
+```
+hydradb
+├── login                          Authenticate and save credentials
+├── logout                         Remove stored credentials
+├── whoami                         Show current auth status
+│
+├── tenant
+│   ├── create <id>                Create a new tenant
+│   ├── monitor [id]               Get tenant status and statistics
+│   ├── list-sub-tenants [id]      List sub-tenant IDs
+│   └── delete <id>                Delete a tenant (irreversible)
+│
+├── memories
+│   ├── add                        Add a user memory
+│   ├── list                       List all user memories
+│   └── delete <id>                Delete a memory by ID
+│
+├── knowledge
+│   ├── upload <files...>          Upload files (PDF, DOCX, TXT, etc.)
+│   ├── upload-text                Upload text content directly
+│   ├── verify <ids...>            Check processing status
+│   └── delete <ids...>            Delete knowledge sources
+│
+├── recall
+│   ├── full <query>               Search over knowledge base
+│   ├── preferences <query>        Search over user memories
+│   └── keyword <query>            Keyword/boolean search
+│
+├── fetch
+│   ├── sources                    List all ingested sources
+│   ├── content <id>               Fetch full content of a source
+│   └── relations <id>             View knowledge graph relations
+│
+└── config
+    ├── show                       Show current configuration
+    └── set <key> <value>          Set a configuration value
+```
+
+## Command Details
 
 ### Authentication
 
-| Command | Description |
-|---------|-------------|
-| `hydradb login` | Authenticate and save credentials to `~/.hydradb/config.json` |
-| `hydradb logout` | Remove stored credentials |
-| `hydradb whoami` | Show current auth status and configuration |
-
 ```bash
-# Login with API key and default tenant
+# Login with API key and tenant
 hydradb login --api-key YOUR_KEY --tenant-id my-tenant
 
-# Check who you are
+# Check current auth
 hydradb whoami
 
-# Logout
+# Logout (removes ~/.hydradb/config.json)
 hydradb logout
 ```
 
-### Tenant Management
+### Memories
 
-| Command | Description |
-|---------|-------------|
-| `hydradb tenant create <id>` | Create a new tenant |
-| `hydradb tenant monitor [id]` | Get tenant status and statistics |
-| `hydradb tenant list-sub-tenants [id]` | List sub-tenant IDs |
-| `hydradb tenant delete <id>` | Delete a tenant (irreversible) |
+Store and retrieve user-specific context (preferences, conversations, traits).
 
 ```bash
-hydradb tenant create my-new-tenant
-hydradb tenant monitor
-hydradb tenant list-sub-tenants
-hydradb tenant delete old-tenant --yes
-```
-
-### User Memories
-
-| Command | Description |
-|---------|-------------|
-| `hydradb memories add` | Add a user memory |
-| `hydradb memories list` | List all user memories |
-| `hydradb memories delete <id>` | Delete a memory by ID |
-
-```bash
-# Add a memory with inference (default)
+# Add a memory (with inference enabled by default)
 hydradb memories add --text "User prefers Nike shoes and runs 5K daily"
 
 # Add without inference
@@ -136,105 +179,108 @@ hydradb memories delete mem_abc123 --yes
 
 ### Knowledge Base
 
-| Command | Description |
-|---------|-------------|
-| `hydradb knowledge upload <files...>` | Upload files (PDF, DOCX, TXT, etc.) |
-| `hydradb knowledge upload-text` | Upload text content |
-| `hydradb knowledge verify <ids...>` | Check processing status |
-| `hydradb knowledge delete <ids...>` | Delete knowledge sources |
+Ingest documents and text into the searchable knowledge base.
 
 ```bash
-# Upload documents
+# Upload files
 hydradb knowledge upload ./contract.pdf ./notes.docx
 
-# Upload with upsert
+# Upload with upsert (update if source ID exists)
 hydradb knowledge upload ./updated-report.pdf --upsert
 
-# Upload text content
-hydradb knowledge upload-text --text "Q4 pricing: Starter $29, Pro $79, Enterprise $199" --title "Pricing"
+# Upload text directly
+hydradb knowledge upload-text --text "Q4 pricing: Starter $29, Pro $79" --title "Pricing"
 
-# Check if processing is complete
+# Check processing status
 hydradb knowledge verify source_abc123
 
 # Delete knowledge sources
-hydradb knowledge delete HydraDoc1234 HydraDoc5678 --yes
+hydradb knowledge delete source_abc123 source_def456 --yes
 ```
 
 ### Recall (Context Retrieval)
 
-| Command | Description |
-|---------|-------------|
-| `hydradb recall full <query>` | Search over knowledge base (documents, files) |
-| `hydradb recall preferences <query>` | Search over user memories and preferences |
-| `hydradb recall keyword <query>` | Deterministic keyword/boolean search |
+Search across your stored memories and knowledge.
 
 ```bash
-# Search knowledge base
+# Search the knowledge base (documents, files)
 hydradb recall full "What did the team say about pricing?"
 
-# Search with thinking mode (deeper graph traversal)
+# Use thinking mode for deeper graph traversal
 hydradb recall full "contract terms" --mode thinking --max-results 20
 
-# Search user memories
+# Search user memories and preferences
 hydradb recall preferences "What does the user prefer?"
 
 # Keyword search with boolean operators
 hydradb recall keyword "pricing AND enterprise" --operator and
 
-# Search memories specifically
+# Phrase search over memories
 hydradb recall keyword "John Smith" --operator phrase --search-mode memories
 ```
 
 ### Fetch & Inspect
 
-| Command | Description |
-|---------|-------------|
-| `hydradb fetch sources` | List all ingested sources |
-| `hydradb fetch content <id>` | Fetch full content of a source |
-| `hydradb fetch relations <id>` | View knowledge graph relations |
+Browse and inspect raw data stored in HydraDB.
 
 ```bash
 # List all sources
 hydradb fetch sources
 
-# List only knowledge sources
-hydradb fetch sources --kind knowledge
+# List only knowledge sources, paginated
+hydradb fetch sources --kind knowledge --page-size 10
 
 # Get full content of a source
 hydradb fetch content source_abc123
 
-# Get a presigned URL instead
+# Get a presigned download URL instead
 hydradb fetch content source_abc123 --mode url
 
-# View graph relations
+# View knowledge graph relations
 hydradb fetch relations source_abc123
+```
+
+### Tenant Management
+
+```bash
+# Create a new tenant
+hydradb tenant create my-new-tenant
+
+# Check tenant status
+hydradb tenant monitor
+
+# List sub-tenants
+hydradb tenant list-sub-tenants
+
+# Delete a tenant (requires confirmation)
+hydradb tenant delete old-tenant --yes
 ```
 
 ### Configuration
 
-| Command | Description |
-|---------|-------------|
-| `hydradb config show` | Show current configuration |
-| `hydradb config set <key> <value>` | Set a configuration value |
-
 ```bash
+# Show current config (file path, values, sources)
 hydradb config show
+
+# Set a config value
 hydradb config set tenant_id my-tenant
 hydradb config set base_url https://api.hydradb.com
 ```
 
+Valid config keys: `api_key`, `tenant_id`, `sub_tenant_id`, `base_url`
+
 ## JSON Output Mode
 
-Every command supports `--output json` (or `-o json`) for agent and script consumption. The flag must come before the command name.
+Every command supports `--output json` (or `-o json`) for machine-readable output. The flag goes **before** the subcommand:
 
 ```bash
 # Human-readable (default)
 hydradb memories list
 
-# JSON output for agents
+# JSON output
 hydradb -o json memories list
 
-# Pipe to jq for filtering
+# Pipe to jq
 hydradb -o json recall full "pricing" | jq '.chunks[0].chunk_content'
 
 # Use in shell scripts
@@ -242,24 +288,14 @@ RESULT=$(hydradb -o json recall full "user preferences")
 echo "$RESULT" | jq '.chunks | length'
 ```
 
-You can also set the default output format via environment variable:
+Set the default output format via environment variable:
 
 ```bash
 export HYDRADB_OUTPUT=json
 hydradb memories list  # now outputs JSON by default
 ```
 
-## Configuration
-
-### Config File
-
-Credentials and defaults are stored in `~/.hydradb/config.json` (permissions: `600`).
-
-```bash
-hydradb config show
-```
-
-### Environment Variables
+## Environment Variables
 
 Environment variables always override config file values:
 
@@ -271,7 +307,7 @@ Environment variables always override config file values:
 | `HYDRA_DB_BASE_URL` | API base URL (default: `https://api.hydradb.com`) |
 | `HYDRADB_OUTPUT` | Default output format (`human` or `json`) |
 
-### Priority Order
+### Configuration priority
 
 1. Command-line flags (highest)
 2. Environment variables
@@ -280,7 +316,7 @@ Environment variables always override config file values:
 
 ## Agent Integration
 
-The CLI is designed for AI agents (Claude Code, OpenClaw, Codex, etc.) to use directly:
+The CLI is designed for AI agents (Claude Code, Cursor, Codex, etc.) to use directly:
 
 ```bash
 # Agent workflow: store context, then recall it later
@@ -299,7 +335,7 @@ hydradb knowledge upload ./spec.pdf
 hydradb -o json recall full "technical requirements" --mode thinking
 ```
 
-### Chaining Commands
+### Chaining commands
 
 ```bash
 # Upload and verify in sequence
@@ -325,12 +361,6 @@ HydraDB uses specific terminology that the CLI mirrors exactly:
 | **Full Recall** | Search over knowledge sources |
 | **Recall Preferences** | Search over user memories |
 | **Boolean Recall** | Deterministic keyword matching |
-
-## Planned Features
-
-- Custom embeddings management (`hydradb embeddings add/recall/filter/delete`)
-- Batch operations for bulk memory and knowledge management
-- Shell completion installation (`hydradb --install-completion`)
 
 ## Development
 
