@@ -16,8 +16,6 @@ Commands are organized by resource:
     config               CLI configuration
 """
 
-from typing import Optional
-
 import typer
 
 from hydradb_cli import __version__
@@ -38,9 +36,7 @@ app = typer.Typer(
 
 def _version_callback(value: bool) -> None:
     if value:
-        console.print(
-            f"[bold cyan]///[/bold cyan] [bold]hydradb-cli[/bold] {__version__}"
-        )
+        console.print(f"[bold cyan]///[/bold cyan] [bold]hydradb-cli[/bold] {__version__}")
         raise typer.Exit()
 
 
@@ -53,7 +49,7 @@ def main(
         help="Output format: 'human' (default) or 'json'.",
         envvar="HYDRADB_OUTPUT",
     ),
-    version: Optional[bool] = typer.Option(
+    version: bool | None = typer.Option(
         None,
         "--version",
         "-v",

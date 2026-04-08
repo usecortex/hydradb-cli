@@ -86,10 +86,7 @@ class TestLogin:
             mock_client.__enter__ = MagicMock(return_value=mock_client)
             mock_client.__exit__ = MagicMock(return_value=False)
             mock_cls.return_value = mock_client
-            result = runner.invoke(app, [
-                "--output", "json",
-                "login", "--api-key", "test-key-abc", "--tenant-id", "t1"
-            ])
+            result = runner.invoke(app, ["--output", "json", "login", "--api-key", "test-key-abc", "--tenant-id", "t1"])
         assert result.exit_code == 0
         data = json.loads(result.output)
         assert data["success"] is True
@@ -101,14 +98,13 @@ class TestLogin:
     def test_login_invalid_key_warns(self, clean_config):
         with patch("hydradb_cli.commands.auth.HydraDBClient") as mock_cls:
             from hydradb_cli.client import HydraDBClientError
+
             mock_client = MagicMock()
             mock_client.monitor_tenant.side_effect = HydraDBClientError(403, "Forbidden")
             mock_client.__enter__ = MagicMock(return_value=mock_client)
             mock_client.__exit__ = MagicMock(return_value=False)
             mock_cls.return_value = mock_client
-            result = runner.invoke(app, [
-                "login", "--api-key", "bad-key", "--tenant-id", "t1"
-            ])
+            result = runner.invoke(app, ["login", "--api-key", "bad-key", "--tenant-id", "t1"])
         assert result.exit_code == 0
         assert "rejected" in result.output
 
@@ -253,9 +249,7 @@ class TestMemoriesCommands:
         }
         mock_get_client.return_value = mock_client
 
-        result = runner.invoke(app, [
-            "memories", "add", "--text", "User prefers dark mode"
-        ])
+        result = runner.invoke(app, ["memories", "add", "--text", "User prefers dark mode"])
         assert result.exit_code == 0
         assert "Memory added" in result.output
 
@@ -266,10 +260,7 @@ class TestMemoriesCommands:
         mock_client.add_memory.return_value = {"success_count": 1, "failed_count": 0}
         mock_get_client.return_value = mock_client
 
-        result = runner.invoke(app, [
-            "--output", "json",
-            "memories", "add", "--text", "test"
-        ])
+        result = runner.invoke(app, ["--output", "json", "memories", "add", "--text", "test"])
         assert result.exit_code == 0
         data = json.loads(result.output)
         assert data["success_count"] == 1
@@ -347,9 +338,7 @@ class TestRecallCommands:
         mock_client.full_recall.return_value = {"chunks": []}
         mock_get_client.return_value = mock_client
 
-        result = runner.invoke(app, [
-            "--output", "json", "recall", "full", "test query"
-        ])
+        result = runner.invoke(app, ["--output", "json", "recall", "full", "test query"])
         assert result.exit_code == 0
         data = json.loads(result.output)
         assert "chunks" in data
@@ -371,9 +360,7 @@ class TestRecallCommands:
         mock_client.boolean_recall.return_value = {"chunks": []}
         mock_get_client.return_value = mock_client
 
-        result = runner.invoke(app, [
-            "recall", "keyword", "John Smith", "--operator", "phrase"
-        ])
+        result = runner.invoke(app, ["recall", "keyword", "John Smith", "--operator", "phrase"])
         assert result.exit_code == 0
 
     @patch("hydradb_cli.commands.recall.get_client")
@@ -410,14 +397,10 @@ class TestKnowledgeCommands:
     def test_knowledge_upload_text(self, mock_get_client, clean_config):
         self._setup_auth(clean_config)
         mock_client = MagicMock()
-        mock_client.upload_text.return_value = {
-            "results": [{"source_id": "src_1", "id": "src_1"}]
-        }
+        mock_client.upload_text.return_value = {"results": [{"source_id": "src_1", "id": "src_1"}]}
         mock_get_client.return_value = mock_client
 
-        result = runner.invoke(app, [
-            "knowledge", "upload-text", "--text", "Meeting notes content"
-        ])
+        result = runner.invoke(app, ["knowledge", "upload-text", "--text", "Meeting notes content"])
         assert result.exit_code == 0
         assert "uploaded" in result.output.lower()
 
@@ -426,18 +409,24 @@ class TestKnowledgeCommands:
         """--sub-tenant-id and --source-id flags are forwarded correctly to client.upload_text."""
         self._setup_auth(clean_config)
         mock_client = MagicMock()
-        mock_client.upload_text.return_value = {
-            "results": [{"source_id": "my-sid", "id": "my-sid"}]
-        }
+        mock_client.upload_text.return_value = {"results": [{"source_id": "my-sid", "id": "my-sid"}]}
         mock_get_client.return_value = mock_client
 
-        result = runner.invoke(app, [
-            "knowledge", "upload-text",
-            "--text", "Q4 pricing: Starter $29, Pro $79",
-            "--sub-tenant-id", "sub-acme",
-            "--source-id", "my-sid",
-            "--title", "Pricing Notes",
-        ])
+        result = runner.invoke(
+            app,
+            [
+                "knowledge",
+                "upload-text",
+                "--text",
+                "Q4 pricing: Starter $29, Pro $79",
+                "--sub-tenant-id",
+                "sub-acme",
+                "--source-id",
+                "my-sid",
+                "--title",
+                "Pricing Notes",
+            ],
+        )
         assert result.exit_code == 0
         call_kwargs = mock_client.upload_text.call_args[1]
         assert call_kwargs["sub_tenant_id"] == "sub-acme"
@@ -458,9 +447,7 @@ class TestKnowledgeCommands:
         mock_client.delete_knowledge.return_value = {"success": True}
         mock_get_client.return_value = mock_client
 
-        result = runner.invoke(app, [
-            "knowledge", "delete", "doc1", "doc2", "--yes"
-        ])
+        result = runner.invoke(app, ["knowledge", "delete", "doc1", "doc2", "--yes"])
         assert result.exit_code == 0
 
     @patch("hydradb_cli.commands.knowledge.get_client")
@@ -522,6 +509,7 @@ class TestFetchCommands:
     def test_fetch_content_not_found(self, mock_get_client, clean_config):
         self._setup_auth(clean_config)
         from hydradb_cli.client import HydraDBClientError
+
         mock_client = MagicMock()
         mock_client.fetch_content.side_effect = HydraDBClientError(404, "File not found")
         mock_get_client.return_value = mock_client

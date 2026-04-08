@@ -8,7 +8,6 @@ Environment variables override file-based config.
 import json
 import os
 from pathlib import Path
-from typing import Optional
 
 # Environment variable names (aligned with MCP plugin and OpenClaw conventions)
 ENV_API_KEY = "HYDRA_DB_API_KEY"
@@ -41,7 +40,7 @@ def _write_config_file(data: dict) -> None:
     CONFIG_FILE.chmod(0o600)
 
 
-def get_api_key() -> Optional[str]:
+def get_api_key() -> str | None:
     """Get API key from env var or config file."""
     env_val = os.environ.get(ENV_API_KEY)
     if env_val:
@@ -49,7 +48,7 @@ def get_api_key() -> Optional[str]:
     return _read_config_file().get("api_key")
 
 
-def get_tenant_id() -> Optional[str]:
+def get_tenant_id() -> str | None:
     """Get default tenant ID from env var or config file."""
     env_val = os.environ.get(ENV_TENANT_ID)
     if env_val:
@@ -57,7 +56,7 @@ def get_tenant_id() -> Optional[str]:
     return _read_config_file().get("tenant_id")
 
 
-def get_sub_tenant_id() -> Optional[str]:
+def get_sub_tenant_id() -> str | None:
     """Get default sub-tenant ID from env var or config file."""
     env_val = os.environ.get(ENV_SUB_TENANT_ID)
     if env_val:
@@ -74,10 +73,10 @@ def get_base_url() -> str:
 
 
 def save_config(
-    api_key: Optional[str] = None,
-    tenant_id: Optional[str] = None,
-    sub_tenant_id: Optional[str] = None,
-    base_url: Optional[str] = None,
+    api_key: str | None = None,
+    tenant_id: str | None = None,
+    sub_tenant_id: str | None = None,
+    base_url: str | None = None,
 ) -> None:
     """Save configuration values to config file."""
     data = _read_config_file()
@@ -108,5 +107,7 @@ def get_full_config() -> dict:
         "base_url": get_base_url(),
         "config_file": str(CONFIG_FILE),
         "api_key_source": "env" if os.environ.get(ENV_API_KEY) else ("file" if file_cfg.get("api_key") else "none"),
-        "tenant_id_source": "env" if os.environ.get(ENV_TENANT_ID) else ("file" if file_cfg.get("tenant_id") else "none"),
+        "tenant_id_source": "env"
+        if os.environ.get(ENV_TENANT_ID)
+        else ("file" if file_cfg.get("tenant_id") else "none"),
     }

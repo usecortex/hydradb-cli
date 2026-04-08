@@ -1,7 +1,5 @@
 """Recall commands: full, preferences, keyword."""
 
-from typing import Optional
-
 import httpx
 import typer
 from rich.console import Group
@@ -65,9 +63,9 @@ def _format_recall_result(r: dict):
 
 def _validate_recall_params(
     query: str,
-    mode: Optional[str],
-    alpha: Optional[float],
-    recency_bias: Optional[float],
+    mode: str | None,
+    alpha: float | None,
+    recency_bias: float | None,
     max_results: int,
 ) -> None:
     """Validate shared recall parameters before hitting the API."""
@@ -90,37 +88,31 @@ def _validate_recall_params(
 @app.command("full")
 def full_recall(
     query: str = typer.Argument(help="Search query to find relevant knowledge."),
-    tenant_id: Optional[str] = typer.Option(
-        None, "--tenant-id", help="Tenant ID. Uses default if not specified."
-    ),
-    sub_tenant_id: Optional[str] = typer.Option(
-        None, "--sub-tenant-id", help="Sub-tenant ID."
-    ),
-    max_results: int = typer.Option(
-        10, "--max-results", "-n", help="Maximum number of results (1-50)."
-    ),
-    mode: Optional[str] = typer.Option(
+    tenant_id: str | None = typer.Option(None, "--tenant-id", help="Tenant ID. Uses default if not specified."),
+    sub_tenant_id: str | None = typer.Option(None, "--sub-tenant-id", help="Sub-tenant ID."),
+    max_results: int = typer.Option(10, "--max-results", "-n", help="Maximum number of results (1-50)."),
+    mode: str | None = typer.Option(
         None,
         "--mode",
         "-m",
         help="Retrieval mode: 'fast' or 'thinking' (deeper graph traversal).",
     ),
-    alpha: Optional[float] = typer.Option(
+    alpha: float | None = typer.Option(
         None,
         "--alpha",
         help="Hybrid search alpha (0.0=keyword, 1.0=semantic).",
     ),
-    recency_bias: Optional[float] = typer.Option(
+    recency_bias: float | None = typer.Option(
         None,
         "--recency-bias",
         help="Preference for newer content (0.0=none, 1.0=strong).",
     ),
-    graph_context: Optional[bool] = typer.Option(
+    graph_context: bool | None = typer.Option(
         None,
         "--graph-context/--no-graph-context",
         help="Include knowledge graph relations in results.",
     ),
-    additional_context: Optional[str] = typer.Option(
+    additional_context: str | None = typer.Option(
         None,
         "--context",
         help="Additional context to guide retrieval.",
@@ -166,37 +158,31 @@ def full_recall(
 @app.command("preferences")
 def recall_preferences(
     query: str = typer.Argument(help="Search query to find relevant user memories."),
-    tenant_id: Optional[str] = typer.Option(
-        None, "--tenant-id", help="Tenant ID. Uses default if not specified."
-    ),
-    sub_tenant_id: Optional[str] = typer.Option(
-        None, "--sub-tenant-id", help="Sub-tenant ID."
-    ),
-    max_results: int = typer.Option(
-        10, "--max-results", "-n", help="Maximum number of results (1-50)."
-    ),
-    mode: Optional[str] = typer.Option(
+    tenant_id: str | None = typer.Option(None, "--tenant-id", help="Tenant ID. Uses default if not specified."),
+    sub_tenant_id: str | None = typer.Option(None, "--sub-tenant-id", help="Sub-tenant ID."),
+    max_results: int = typer.Option(10, "--max-results", "-n", help="Maximum number of results (1-50)."),
+    mode: str | None = typer.Option(
         None,
         "--mode",
         "-m",
         help="Retrieval mode: 'fast' or 'thinking'.",
     ),
-    alpha: Optional[float] = typer.Option(
+    alpha: float | None = typer.Option(
         None,
         "--alpha",
         help="Hybrid search alpha (0.0=keyword, 1.0=semantic).",
     ),
-    recency_bias: Optional[float] = typer.Option(
+    recency_bias: float | None = typer.Option(
         None,
         "--recency-bias",
         help="Preference for newer content (0.0=none, 1.0=strong).",
     ),
-    graph_context: Optional[bool] = typer.Option(
+    graph_context: bool | None = typer.Option(
         None,
         "--graph-context/--no-graph-context",
         help="Include knowledge graph relations.",
     ),
-    additional_context: Optional[str] = typer.Option(
+    additional_context: str | None = typer.Option(
         None,
         "--context",
         help="Additional context to guide retrieval.",
@@ -243,21 +229,15 @@ def recall_preferences(
 @app.command("keyword")
 def keyword_recall(
     query: str = typer.Argument(help="Keyword search terms."),
-    tenant_id: Optional[str] = typer.Option(
-        None, "--tenant-id", help="Tenant ID. Uses default if not specified."
-    ),
-    sub_tenant_id: Optional[str] = typer.Option(
-        None, "--sub-tenant-id", help="Sub-tenant ID."
-    ),
-    operator: Optional[str] = typer.Option(
+    tenant_id: str | None = typer.Option(None, "--tenant-id", help="Tenant ID. Uses default if not specified."),
+    sub_tenant_id: str | None = typer.Option(None, "--sub-tenant-id", help="Sub-tenant ID."),
+    operator: str | None = typer.Option(
         None,
         "--operator",
         help="How to combine terms: 'or', 'and', or 'phrase'.",
     ),
-    max_results: int = typer.Option(
-        10, "--max-results", "-n", help="Maximum number of results."
-    ),
-    search_mode: Optional[str] = typer.Option(
+    max_results: int = typer.Option(10, "--max-results", "-n", help="Maximum number of results."),
+    search_mode: str | None = typer.Option(
         None,
         "--search-mode",
         help="What to search: 'sources' (documents) or 'memories' (user memories).",

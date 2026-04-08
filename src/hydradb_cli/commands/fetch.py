@@ -1,7 +1,5 @@
 """Fetch commands: content, sources, relations."""
 
-from typing import Optional
-
 import httpx
 import typer
 from rich.console import Group
@@ -27,12 +25,8 @@ VALID_SOURCE_KINDS = {"knowledge", "memories"}
 @app.command()
 def content(
     source_id: str = typer.Argument(help="Source ID to fetch content for."),
-    tenant_id: Optional[str] = typer.Option(
-        None, "--tenant-id", help="Tenant ID. Uses default if not specified."
-    ),
-    sub_tenant_id: Optional[str] = typer.Option(
-        None, "--sub-tenant-id", help="Sub-tenant ID."
-    ),
+    tenant_id: str | None = typer.Option(None, "--tenant-id", help="Tenant ID. Uses default if not specified."),
+    sub_tenant_id: str | None = typer.Option(None, "--sub-tenant-id", help="Sub-tenant ID."),
     mode: str = typer.Option(
         "content",
         "--mode",
@@ -95,7 +89,7 @@ def content(
 
             return Panel(
                 body,
-                title=f"[bold cyan]/// Source Content[/bold cyan]",
+                title="[bold cyan]/// Source Content[/bold cyan]",
                 border_style="cyan",
                 padding=(0, 1),
             )
@@ -115,23 +109,15 @@ def content(
 
 @app.command()
 def sources(
-    tenant_id: Optional[str] = typer.Option(
-        None, "--tenant-id", help="Tenant ID. Uses default if not specified."
-    ),
-    sub_tenant_id: Optional[str] = typer.Option(
-        None, "--sub-tenant-id", help="Sub-tenant ID."
-    ),
-    kind: Optional[str] = typer.Option(
+    tenant_id: str | None = typer.Option(None, "--tenant-id", help="Tenant ID. Uses default if not specified."),
+    sub_tenant_id: str | None = typer.Option(None, "--sub-tenant-id", help="Sub-tenant ID."),
+    kind: str | None = typer.Option(
         None,
         "--kind",
         help="Filter by kind: 'knowledge' or 'memories'.",
     ),
-    page: Optional[int] = typer.Option(
-        None, "--page", help="Page number (1-indexed)."
-    ),
-    page_size: Optional[int] = typer.Option(
-        None, "--page-size", help="Items per page (1-100)."
-    ),
+    page: int | None = typer.Option(None, "--page", help="Page number (1-indexed)."),
+    page_size: int | None = typer.Option(None, "--page-size", help="Items per page (1-100)."),
 ) -> None:
     """List all ingested sources (knowledge and/or memories).
 
@@ -180,7 +166,10 @@ def sources(
                     rows.append([str(i), sid, src_title, stype])
 
                 table = make_table(
-                    "#", "Source ID", "Title", "Type",
+                    "#",
+                    "Source ID",
+                    "Title",
+                    "Type",
                     rows=rows,
                     title=f"Found {len(sources_list)} source(s)",
                 )
@@ -206,7 +195,9 @@ def sources(
                     preview = mem_content[:100] + "..." if len(mem_content) > 100 else mem_content
                     rows.append([str(i), mid, preview])
                 return make_table(
-                    "#", "Memory ID", "Content",
+                    "#",
+                    "Memory ID",
+                    "Content",
                     rows=rows,
                     title=f"Found {len(memories_list)} memory/memories",
                 )
@@ -223,20 +214,14 @@ def sources(
 @app.command()
 def relations(
     source_id: str = typer.Argument(help="Source ID to fetch graph relations for."),
-    tenant_id: Optional[str] = typer.Option(
-        None, "--tenant-id", help="Tenant ID. Uses default if not specified."
-    ),
-    sub_tenant_id: Optional[str] = typer.Option(
-        None, "--sub-tenant-id", help="Sub-tenant ID."
-    ),
-    is_memory: Optional[bool] = typer.Option(
+    tenant_id: str | None = typer.Option(None, "--tenant-id", help="Tenant ID. Uses default if not specified."),
+    sub_tenant_id: str | None = typer.Option(None, "--sub-tenant-id", help="Sub-tenant ID."),
+    is_memory: bool | None = typer.Option(
         None,
         "--is-memory/--is-knowledge",
         help="Whether the source is a memory (vs knowledge).",
     ),
-    limit: Optional[int] = typer.Option(
-        None, "--limit", help="Maximum number of relations to return."
-    ),
+    limit: int | None = typer.Option(None, "--limit", help="Maximum number of relations to return."),
 ) -> None:
     """Fetch knowledge graph relations for a source.
 
@@ -283,7 +268,9 @@ def relations(
                     rows.append([src, pred, tgt])
 
             return make_table(
-                "Subject", "Predicate", "Object",
+                "Subject",
+                "Predicate",
+                "Object",
                 rows=rows,
                 title=f"Graph relations for '{source_id}'",
             )
