@@ -7,7 +7,7 @@ All methods return raw dict responses — the CLI commands handle formatting.
 import json
 import uuid
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 import httpx
 
@@ -28,8 +28,8 @@ class HydraDBClient:
 
     def __init__(
         self,
-        api_key: Optional[str] = None,
-        base_url: Optional[str] = None,
+        api_key: str | None = None,
+        base_url: str | None = None,
         timeout: float = 60.0,
     ):
         self.api_key = api_key or get_api_key()
@@ -70,9 +70,7 @@ class HydraDBClient:
                 0, f"Could not connect to {self.base_url}. Check your network and base URL."
             ) from e
         except httpx.ConnectTimeout as e:
-            raise HydraDBClientError(
-                0, f"Connection timed out reaching {self.base_url}."
-            ) from e
+            raise HydraDBClientError(0, f"Connection timed out reaching {self.base_url}.") from e
         except httpx.ReadTimeout as e:
             raise HydraDBClientError(
                 0, "Request timed out waiting for a response. The server may be under heavy load."
@@ -99,15 +97,16 @@ class HydraDBClient:
     def create_tenant(
         self,
         tenant_id: str,
-        is_embeddings_tenant: Optional[bool] = None,
-        embeddings_dimension: Optional[int] = None,
+        is_embeddings_tenant: bool | None = None,
+        embeddings_dimension: int | None = None,
     ) -> dict:
         body: dict[str, Any] = {"tenant_id": tenant_id}
         if is_embeddings_tenant is not None:
             body["is_embeddings_tenant"] = is_embeddings_tenant
         if embeddings_dimension is not None:
             body["embeddings_dimension"] = embeddings_dimension
-        resp = self._request("post",
+        resp = self._request(
+            "post",
             f"{self.base_url}/tenants/create",
             headers=self._headers(),
             json=body,
@@ -115,7 +114,8 @@ class HydraDBClient:
         return self._handle_response(resp)
 
     def monitor_tenant(self, tenant_id: str) -> dict:
-        resp = self._request("get",
+        resp = self._request(
+            "get",
             f"{self.base_url}/tenants/monitor",
             headers=self._headers(),
             params={"tenant_id": tenant_id},
@@ -123,7 +123,8 @@ class HydraDBClient:
         return self._handle_response(resp)
 
     def list_sub_tenants(self, tenant_id: str) -> dict:
-        resp = self._request("get",
+        resp = self._request(
+            "get",
             f"{self.base_url}/tenants/sub_tenant_ids",
             headers=self._headers(),
             params={"tenant_id": tenant_id},
@@ -131,7 +132,8 @@ class HydraDBClient:
         return self._handle_response(resp)
 
     def delete_tenant(self, tenant_id: str) -> dict:
-        resp = self._request("delete",
+        resp = self._request(
+            "delete",
             f"{self.base_url}/tenants/delete",
             headers=self._headers(),
             params={"tenant_id": tenant_id},
@@ -144,12 +146,12 @@ class HydraDBClient:
         self,
         tenant_id: str,
         text: str,
-        sub_tenant_id: Optional[str] = None,
+        sub_tenant_id: str | None = None,
         infer: bool = True,
         is_markdown: bool = False,
-        title: Optional[str] = None,
-        source_id: Optional[str] = None,
-        user_name: Optional[str] = None,
+        title: str | None = None,
+        source_id: str | None = None,
+        user_name: str | None = None,
         upsert: bool = True,
     ) -> dict:
         memory: dict[str, Any] = {
@@ -172,7 +174,8 @@ class HydraDBClient:
         if sub_tenant_id is not None:
             body["sub_tenant_id"] = sub_tenant_id
 
-        resp = self._request("post",
+        resp = self._request(
+            "post",
             f"{self.base_url}/memories/add_memory",
             headers=self._headers(),
             json=body,
@@ -182,7 +185,7 @@ class HydraDBClient:
     def list_memories(
         self,
         tenant_id: str,
-        sub_tenant_id: Optional[str] = None,
+        sub_tenant_id: str | None = None,
     ) -> dict:
         body: dict[str, Any] = {
             "tenant_id": tenant_id,
@@ -190,7 +193,8 @@ class HydraDBClient:
         }
         if sub_tenant_id is not None:
             body["sub_tenant_id"] = sub_tenant_id
-        resp = self._request("post",
+        resp = self._request(
+            "post",
             f"{self.base_url}/list/data",
             headers=self._headers(),
             json=body,
@@ -201,7 +205,7 @@ class HydraDBClient:
         self,
         tenant_id: str,
         memory_id: str,
-        sub_tenant_id: Optional[str] = None,
+        sub_tenant_id: str | None = None,
     ) -> dict:
         params: dict[str, str] = {
             "tenant_id": tenant_id,
@@ -209,7 +213,8 @@ class HydraDBClient:
         }
         if sub_tenant_id is not None:
             params["sub_tenant_id"] = sub_tenant_id
-        resp = self._request("delete",
+        resp = self._request(
+            "delete",
             f"{self.base_url}/memories/delete_memory",
             headers=self._headers(),
             params=params,
@@ -222,9 +227,9 @@ class HydraDBClient:
         self,
         tenant_id: str,
         file_paths: list[str],
-        sub_tenant_id: Optional[str] = None,
+        sub_tenant_id: str | None = None,
         upsert: bool = False,
-        file_metadata: Optional[list[dict]] = None,
+        file_metadata: list[dict] | None = None,
     ) -> dict:
         paths = []
         for fp in file_paths:
@@ -253,7 +258,8 @@ class HydraDBClient:
             if file_metadata:
                 data["file_metadata"] = json.dumps(file_metadata)
 
-            resp = self._request("post",
+            resp = self._request(
+                "post",
                 f"{self.base_url}/ingestion/upload_knowledge",
                 headers=self._auth_headers(),
                 data=data,
@@ -268,9 +274,9 @@ class HydraDBClient:
         self,
         tenant_id: str,
         text: str,
-        sub_tenant_id: Optional[str] = None,
-        title: Optional[str] = None,
-        source_id: Optional[str] = None,
+        sub_tenant_id: str | None = None,
+        title: str | None = None,
+        source_id: str | None = None,
     ) -> dict:
         """Upload text content as a knowledge source (via app_sources).
 
@@ -294,7 +300,8 @@ class HydraDBClient:
             data["sub_tenant_id"] = sub_tenant_id
         data["app_sources"] = json.dumps(source)
 
-        resp = self._request("post",
+        resp = self._request(
+            "post",
             f"{self.base_url}/ingestion/upload_knowledge",
             headers=self._auth_headers(),
             data=data,
@@ -305,7 +312,7 @@ class HydraDBClient:
         self,
         tenant_id: str,
         file_ids: list[str],
-        sub_tenant_id: Optional[str] = None,
+        sub_tenant_id: str | None = None,
     ) -> dict:
         params: dict[str, Any] = {
             "tenant_id": tenant_id,
@@ -313,7 +320,8 @@ class HydraDBClient:
         }
         if sub_tenant_id is not None:
             params["sub_tenant_id"] = sub_tenant_id
-        resp = self._request("post",
+        resp = self._request(
+            "post",
             f"{self.base_url}/ingestion/verify_processing",
             headers=self._headers(),
             params=params,
@@ -324,7 +332,7 @@ class HydraDBClient:
         self,
         tenant_id: str,
         ids: list[str],
-        sub_tenant_id: Optional[str] = None,
+        sub_tenant_id: str | None = None,
     ) -> dict:
         body: dict[str, Any] = {
             "tenant_id": tenant_id,
@@ -332,7 +340,8 @@ class HydraDBClient:
         }
         if sub_tenant_id is not None:
             body["sub_tenant_id"] = sub_tenant_id
-        resp = self._request("post",
+        resp = self._request(
+            "post",
             f"{self.base_url}/knowledge/delete_knowledge",
             headers=self._headers(),
             json=body,
@@ -346,13 +355,13 @@ class HydraDBClient:
         endpoint: str,
         tenant_id: str,
         query: str,
-        sub_tenant_id: Optional[str] = None,
+        sub_tenant_id: str | None = None,
         max_results: int = 10,
-        mode: Optional[str] = None,
-        alpha: Optional[float] = None,
-        recency_bias: Optional[float] = None,
-        graph_context: Optional[bool] = None,
-        additional_context: Optional[str] = None,
+        mode: str | None = None,
+        alpha: float | None = None,
+        recency_bias: float | None = None,
+        graph_context: bool | None = None,
+        additional_context: str | None = None,
     ) -> dict:
         """Shared recall logic for full_recall and recall_preferences."""
         body: dict[str, Any] = {
@@ -372,7 +381,8 @@ class HydraDBClient:
             body["graph_context"] = graph_context
         if additional_context:
             body["additional_context"] = additional_context
-        resp = self._request("post",
+        resp = self._request(
+            "post",
             f"{self.base_url}/recall/{endpoint}",
             headers=self._headers(),
             json=body,
@@ -389,10 +399,10 @@ class HydraDBClient:
         self,
         tenant_id: str,
         query: str,
-        sub_tenant_id: Optional[str] = None,
-        operator: Optional[str] = None,
+        sub_tenant_id: str | None = None,
+        operator: str | None = None,
         max_results: int = 10,
-        search_mode: Optional[str] = None,
+        search_mode: str | None = None,
     ) -> dict:
         body: dict[str, Any] = {
             "tenant_id": tenant_id,
@@ -405,7 +415,8 @@ class HydraDBClient:
             body["operator"] = operator
         if search_mode:
             body["search_mode"] = search_mode
-        resp = self._request("post",
+        resp = self._request(
+            "post",
             f"{self.base_url}/recall/boolean_recall",
             headers=self._headers(),
             json=body,
@@ -417,10 +428,10 @@ class HydraDBClient:
     def list_data(
         self,
         tenant_id: str,
-        sub_tenant_id: Optional[str] = None,
-        kind: Optional[str] = None,
-        page: Optional[int] = None,
-        page_size: Optional[int] = None,
+        sub_tenant_id: str | None = None,
+        kind: str | None = None,
+        page: int | None = None,
+        page_size: int | None = None,
     ) -> dict:
         body: dict[str, Any] = {"tenant_id": tenant_id}
         if sub_tenant_id is not None:
@@ -431,7 +442,8 @@ class HydraDBClient:
             body["page"] = page
         if page_size is not None:
             body["page_size"] = page_size
-        resp = self._request("post",
+        resp = self._request(
+            "post",
             f"{self.base_url}/list/data",
             headers=self._headers(),
             json=body,
@@ -442,7 +454,7 @@ class HydraDBClient:
         self,
         tenant_id: str,
         source_id: str,
-        sub_tenant_id: Optional[str] = None,
+        sub_tenant_id: str | None = None,
         mode: str = "content",
     ) -> dict:
         body: dict[str, Any] = {
@@ -452,7 +464,8 @@ class HydraDBClient:
         }
         if sub_tenant_id is not None:
             body["sub_tenant_id"] = sub_tenant_id
-        resp = self._request("post",
+        resp = self._request(
+            "post",
             f"{self.base_url}/fetch/content",
             headers=self._headers(),
             json=body,
@@ -463,9 +476,9 @@ class HydraDBClient:
         self,
         tenant_id: str,
         source_id: str,
-        sub_tenant_id: Optional[str] = None,
-        is_memory: Optional[bool] = None,
-        limit: Optional[int] = None,
+        sub_tenant_id: str | None = None,
+        is_memory: bool | None = None,
+        limit: int | None = None,
     ) -> dict:
         params: dict[str, Any] = {
             "source_id": source_id,
@@ -477,7 +490,8 @@ class HydraDBClient:
             params["is_memory"] = str(is_memory).lower()
         if limit is not None:
             params["limit"] = str(limit)
-        resp = self._request("get",
+        resp = self._request(
+            "get",
             f"{self.base_url}/list/graph_relations_by_id",
             headers=self._headers(),
             params=params,

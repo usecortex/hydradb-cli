@@ -1,0 +1,11 @@
+# Default reviewers for all changes
+* @usecortex/hydradb-maintainers
+
+# CLI commands
+/src/hydradb_cli/commands/ @usecortex/hydradb-maintainers
+
+# API client
+/src/hydradb_cli/client.py @usecortex/hydradb-maintainers
+
+# CI and tooling
+/.github/ @usecortex/hydradb-maintainers

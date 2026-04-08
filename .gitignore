@@ -1,17 +1,35 @@
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Python
+.venv/
+venv/
+env/
 __pycache__/
 *.py[cod]
 *$py.class
 *.egg-info/
+*.egg
+.eggs/
 dist/
 build/
-.eggs/
-*.egg
-.venv/
-venv/
-env/
-.env
 *.so
-.mypy_cache/
+
+# Tools
 .pytest_cache/
+.ruff_cache/
+.mypy_cache/
 .coverage
 htmlcov/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
