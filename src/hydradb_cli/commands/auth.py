@@ -1,7 +1,6 @@
 """Authentication commands: login, logout, whoami."""
 
 import sys
-from typing import Optional
 
 import typer
 from rich.panel import Panel
@@ -19,29 +18,28 @@ from hydradb_cli.output import (
     print_error,
     print_json,
     print_result,
-    print_warning,
     spinner,
 )
 from hydradb_cli.utils.common import mask_api_key
 
 
 def login(
-    api_key: Optional[str] = typer.Option(
+    api_key: str | None = typer.Option(
         None,
         "--api-key",
         help="Your HydraDB API key (Bearer token).",
     ),
-    tenant_id: Optional[str] = typer.Option(
+    tenant_id: str | None = typer.Option(
         None,
         "--tenant-id",
         help="Default tenant ID to use for all commands.",
     ),
-    sub_tenant_id: Optional[str] = typer.Option(
+    sub_tenant_id: str | None = typer.Option(
         None,
         "--sub-tenant-id",
         help="Default sub-tenant ID.",
     ),
-    base_url: Optional[str] = typer.Option(
+    base_url: str | None = typer.Option(
         None,
         "--base-url",
         help="Custom API base URL (default: https://api.hydradb.com).",
@@ -63,7 +61,7 @@ def login(
     if not api_key or not api_key.strip():
         print_error("API key cannot be empty.")
 
-    validation_warning: Optional[str] = None
+    validation_warning: str | None = None
 
     with HydraDBClient(api_key=api_key, base_url=base_url) as client:
         if tenant_id:
@@ -100,7 +98,7 @@ def login(
     def fmt(r: dict):
         lines = [
             "[green]\u2713[/green] Logged in to HydraDB",
-            f"  [dim]Credentials saved to ~/.hydradb/config.json[/dim]",
+            "  [dim]Credentials saved to ~/.hydradb/config.json[/dim]",
         ]
         if tenant_id:
             lines.append(f"  [cyan]Tenant:[/cyan] {tenant_id}")

@@ -18,10 +18,12 @@ def client():
 
 class TestClientInit:
     def test_default_base_url(self):
-        with patch("hydradb_cli.client.get_api_key", return_value="k"):
-            with patch("hydradb_cli.client.get_base_url", return_value="https://api.hydradb.com"):
-                c = HydraDBClient()
-                assert c.base_url == "https://api.hydradb.com"
+        with (
+            patch("hydradb_cli.client.get_api_key", return_value="k"),
+            patch("hydradb_cli.client.get_base_url", return_value="https://api.hydradb.com"),
+        ):
+            c = HydraDBClient()
+            assert c.base_url == "https://api.hydradb.com"
 
     def test_custom_base_url(self):
         c = HydraDBClient(api_key="k", base_url="https://custom.com/")
@@ -123,7 +125,7 @@ class TestMemoryMethods:
             mock_resp.json.return_value = {"user_memories": []}
             mock_post.return_value = mock_resp
 
-            result = client.list_memories("t1")
+            client.list_memories("t1")
             body = mock_post.call_args[1]["json"]
             assert body["kind"] == "memories"
 
@@ -134,7 +136,7 @@ class TestMemoryMethods:
             mock_resp.json.return_value = {"user_memory_deleted": True}
             mock_del.return_value = mock_resp
 
-            result = client.delete_memory("t1", "mem_123")
+            client.delete_memory("t1", "mem_123")
             params = mock_del.call_args[1]["params"]
             assert params["memory_id"] == "mem_123"
 
@@ -244,9 +246,7 @@ class TestKnowledgeMethods:
             mock_resp.json.return_value = {"results": []}
             mock_post.return_value = mock_resp
 
-            client.upload_text(
-                tenant_id="t1", text="hello", sub_tenant_id="sub1"
-            )
+            client.upload_text(tenant_id="t1", text="hello", sub_tenant_id="sub1")
 
             data = mock_post.call_args[1]["data"]
             app_sources = json.loads(data["app_sources"])
@@ -300,7 +300,7 @@ class TestFetchMethods:
             mock_resp.json.return_value = {"content": "hello"}
             mock_post.return_value = mock_resp
 
-            result = client.fetch_content("t1", "src_1", mode="content")
+            client.fetch_content("t1", "src_1", mode="content")
             body = mock_post.call_args[1]["json"]
             assert body["source_id"] == "src_1"
             assert body["mode"] == "content"

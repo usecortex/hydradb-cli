@@ -1,7 +1,6 @@
 """User memory commands: add, list, delete."""
 
 import sys
-from typing import Optional
 
 import httpx
 import typer
@@ -23,18 +22,14 @@ app = typer.Typer(help="Manage user memories.")
 
 @app.command()
 def add(
-    text: Optional[str] = typer.Option(
+    text: str | None = typer.Option(
         None,
         "--text",
         "-t",
         help="Text content to store as a memory. Use '-' to read from stdin.",
     ),
-    tenant_id: Optional[str] = typer.Option(
-        None, "--tenant-id", help="Tenant ID. Uses default if not specified."
-    ),
-    sub_tenant_id: Optional[str] = typer.Option(
-        None, "--sub-tenant-id", help="Sub-tenant ID."
-    ),
+    tenant_id: str | None = typer.Option(None, "--tenant-id", help="Tenant ID. Uses default if not specified."),
+    sub_tenant_id: str | None = typer.Option(None, "--sub-tenant-id", help="Sub-tenant ID."),
     infer: bool = typer.Option(
         True,
         "--infer/--no-infer",
@@ -45,15 +40,13 @@ def add(
         "--markdown",
         help="Treat the text as markdown content.",
     ),
-    title: Optional[str] = typer.Option(
-        None, "--title", help="Optional title for the memory."
-    ),
-    source_id: Optional[str] = typer.Option(
+    title: str | None = typer.Option(None, "--title", help="Optional title for the memory."),
+    source_id: str | None = typer.Option(
         None,
         "--source-id",
         help="Source identifier to group related memories.",
     ),
-    user_name: Optional[str] = typer.Option(
+    user_name: str | None = typer.Option(
         None,
         "--user-name",
         help="User name for personalization.",
@@ -91,8 +84,7 @@ def add(
             text = stdin_data
         else:
             print_error(
-                "No text provided. Use --text 'your text', "
-                "pipe via stdin, or use --text - for interactive input."
+                "No text provided. Use --text 'your text', pipe via stdin, or use --text - for interactive input."
             )
 
     if not text or not text.strip():
@@ -127,7 +119,7 @@ def add(
             mark = "\u2713" if failed_count == 0 else "!"
             header = f"[{status}]{mark}[/{status}] Memory added ({success_count} success, {failed_count} failed)"
 
-            lines = [header, f"[dim]\"{preview}\"[/dim]"]
+            lines = [header, f'[dim]"{preview}"[/dim]']
             results = r.get("results", [])
             for item in results:
                 sid = item.get("source_id", "unknown")
@@ -147,12 +139,8 @@ def add(
 
 @app.command("list")
 def list_memories(
-    tenant_id: Optional[str] = typer.Option(
-        None, "--tenant-id", help="Tenant ID. Uses default if not specified."
-    ),
-    sub_tenant_id: Optional[str] = typer.Option(
-        None, "--sub-tenant-id", help="Sub-tenant ID."
-    ),
+    tenant_id: str | None = typer.Option(None, "--tenant-id", help="Tenant ID. Uses default if not specified."),
+    sub_tenant_id: str | None = typer.Option(None, "--sub-tenant-id", help="Sub-tenant ID."),
 ) -> None:
     """List all user memories for a tenant.
 
@@ -179,7 +167,9 @@ def list_memories(
                 preview = content[:100] + "..." if len(content) > 100 else content
                 rows.append([str(i), mid, preview])
             return make_table(
-                "#", "Memory ID", "Content",
+                "#",
+                "Memory ID",
+                "Content",
                 rows=rows,
                 title=f"Found {len(memories)} memories",
             )
@@ -194,12 +184,8 @@ def list_memories(
 @app.command()
 def delete(
     memory_id: str = typer.Argument(help="ID of the memory to delete."),
-    tenant_id: Optional[str] = typer.Option(
-        None, "--tenant-id", help="Tenant ID. Uses default if not specified."
-    ),
-    sub_tenant_id: Optional[str] = typer.Option(
-        None, "--sub-tenant-id", help="Sub-tenant ID."
-    ),
+    tenant_id: str | None = typer.Option(None, "--tenant-id", help="Tenant ID. Uses default if not specified."),
+    sub_tenant_id: str | None = typer.Option(None, "--sub-tenant-id", help="Sub-tenant ID."),
     confirm: bool = typer.Option(
         False,
         "--yes",

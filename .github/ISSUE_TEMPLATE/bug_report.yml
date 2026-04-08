@@ -1,0 +1,73 @@
+name: Bug Report
+description: Report a bug or unexpected behavior in HydraDB CLI
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for reporting a bug. Please fill out the sections below to help us reproduce and fix the issue.
+
+  - type: input
+    id: version
+    attributes:
+      label: CLI Version
+      description: "Output of `hydradb --version`"
+      placeholder: "hydradb-cli 0.1.0"
+    validations:
+      required: true
+
+  - type: input
+    id: python-version
+    attributes:
+      label: Python Version
+      description: "Output of `python --version`"
+      placeholder: "Python 3.12.0"
+    validations:
+      required: true
+
+  - type: input
+    id: os
+    attributes:
+      label: Operating System
+      placeholder: "macOS 14.2 / Ubuntu 22.04 / Windows 11"
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Bug Description
+      description: A clear description of what happened and what you expected to happen.
+      placeholder: |
+        When I run `hydradb recall full "my query"`, I get an error...
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to Reproduce
+      description: Minimal steps to reproduce the behavior.
+      placeholder: |
+        1. Run `hydradb login`
+        2. Run `hydradb recall full "test query"`
+        3. See error
+    validations:
+      required: true
+
+  - type: textarea
+    id: output
+    attributes:
+      label: CLI Output
+      description: Paste the full CLI output, including any error messages.
+      render: shell
+    validations:
+      required: false
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional Context
+      description: Any other information that might help (config, environment, workarounds tried).
+    validations:
+      required: false

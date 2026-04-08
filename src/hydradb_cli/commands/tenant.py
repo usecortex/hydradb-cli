@@ -1,7 +1,5 @@
 """Tenant management commands."""
 
-from typing import Optional
-
 import httpx
 import typer
 from rich.panel import Panel
@@ -21,7 +19,7 @@ def create(
         "--embeddings",
         help="Create as an embeddings tenant.",
     ),
-    embeddings_dimension: Optional[int] = typer.Option(
+    embeddings_dimension: int | None = typer.Option(
         None,
         "--embeddings-dimension",
         help="Embedding vector dimensions (required if --embeddings is set).",
@@ -54,12 +52,15 @@ def create(
 
 @app.command()
 def monitor(
-    tenant_id_arg: Optional[str] = typer.Argument(
-        None, help="Tenant ID to monitor. Uses default if not specified.",
+    tenant_id_arg: str | None = typer.Argument(
+        None,
+        help="Tenant ID to monitor. Uses default if not specified.",
         metavar="TENANT_ID",
     ),
-    tenant_id: Optional[str] = typer.Option(
-        None, "--tenant-id", help="Tenant ID (alternative to positional argument).",
+    tenant_id: str | None = typer.Option(
+        None,
+        "--tenant-id",
+        help="Tenant ID (alternative to positional argument).",
         hidden=True,
     ),
 ) -> None:
@@ -91,12 +92,15 @@ def monitor(
 
 @app.command("list-sub-tenants")
 def list_sub_tenants(
-    tenant_id_arg: Optional[str] = typer.Argument(
-        None, help="Tenant ID. Uses default if not specified.",
+    tenant_id_arg: str | None = typer.Argument(
+        None,
+        help="Tenant ID. Uses default if not specified.",
         metavar="TENANT_ID",
     ),
-    tenant_id: Optional[str] = typer.Option(
-        None, "--tenant-id", help="Tenant ID (alternative to positional argument).",
+    tenant_id: str | None = typer.Option(
+        None,
+        "--tenant-id",
+        help="Tenant ID (alternative to positional argument).",
         hidden=True,
     ),
 ) -> None:

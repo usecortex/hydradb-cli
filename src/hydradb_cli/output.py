@@ -6,26 +6,27 @@ Supports two modes:
 """
 
 import json
+from collections.abc import Callable
 from contextlib import contextmanager
-from typing import Any, Callable, Optional, Union
+from typing import Any
 
 import typer
 from rich.console import Console, RenderableType
-from rich.panel import Panel
 from rich.table import Table
-from rich.text import Text
 from rich.theme import Theme
 
-_THEME = Theme({
-    "hydra.brand": "bold cyan",
-    "hydra.success": "green",
-    "hydra.error": "bold red",
-    "hydra.warning": "yellow",
-    "hydra.dim": "dim",
-    "hydra.key": "cyan",
-    "hydra.value": "white",
-    "hydra.accent": "bold cyan",
-})
+_THEME = Theme(
+    {
+        "hydra.brand": "bold cyan",
+        "hydra.success": "green",
+        "hydra.error": "bold red",
+        "hydra.warning": "yellow",
+        "hydra.dim": "dim",
+        "hydra.key": "cyan",
+        "hydra.value": "white",
+        "hydra.accent": "bold cyan",
+    }
+)
 
 console = Console(theme=_THEME, highlight=False)
 err_console = Console(stderr=True, theme=_THEME, highlight=False)
@@ -82,7 +83,7 @@ def print_error(message: str, exit_code: int = 1) -> None:
 
 def print_result(
     data: Any,
-    human_formatter: Optional[Callable[[Any], Union[str, RenderableType]]] = None,
+    human_formatter: Callable[[Any], str | RenderableType] | None = None,
 ) -> None:
     """Print API result — JSON in json mode, formatted in human mode.
 
@@ -92,11 +93,7 @@ def print_result(
     if _output_format == "json":
         print_json(data)
     elif human_formatter:
-        result = human_formatter(data)
-        if isinstance(result, str):
-            console.print(result)
-        else:
-            console.print(result)
+        console.print(human_formatter(data))
     else:
         print_json(data)
 
@@ -104,9 +101,7 @@ def print_result(
 def print_table(headers: list[str], rows: list[list[str]]) -> None:
     """Print a Rich table in human mode, or JSON array in json mode."""
     if _output_format == "json":
-        items = []
-        for row in rows:
-            items.append(dict(zip(headers, row)))
+        items = [dict(zip(headers, row, strict=True)) for row in rows]
         print_json(items)
         return
 
@@ -131,7 +126,7 @@ def print_table(headers: list[str], rows: list[list[str]]) -> None:
 def make_table(
     *columns: str,
     rows: list[list[str]],
-    title: Optional[str] = None,
+    title: str | None = None,
     border_style: str = "dim",
 ) -> Table:
     """Build a Rich Table without printing it — callers compose into panels etc."""
@@ -151,7 +146,7 @@ def make_table(
     return table
 
 
-def make_kv_table(pairs: list[tuple[str, str]], title: Optional[str] = None) -> Table:
+def make_kv_table(pairs: list[tuple[str, str]], title: str | None = None) -> Table:
     """Build a two-column key-value table."""
     table = Table(
         show_header=False,

@@ -1,14 +1,8 @@
 """Tests for hydradb_cli.config module."""
 
-import json
-import os
-from pathlib import Path
-from unittest.mock import patch
-
 import pytest
 
 from hydradb_cli.config import (
-    CONFIG_FILE,
     DEFAULT_BASE_URL,
     ENV_API_KEY,
     ENV_BASE_URL,

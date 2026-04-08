@@ -1,7 +1,5 @@
 """Configuration commands: show, set."""
 
-from typing import Optional
-
 import typer
 from rich.panel import Panel
 
@@ -101,5 +99,7 @@ def set_value(
     result = {"success": True, "key": key, "message": f"Set {key} in config."}
     print_result(
         result,
-        lambda r: f"[green]\u2713[/green] Set [cyan]{key}[/cyan] = [bold]{display_value}[/bold] in ~/.hydradb/config.json",
+        lambda r: (
+            f"[green]\u2713[/green] Set [cyan]{key}[/cyan] = [bold]{display_value}[/bold] in ~/.hydradb/config.json"
+        ),
     )

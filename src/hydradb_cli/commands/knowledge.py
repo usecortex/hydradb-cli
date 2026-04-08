@@ -1,7 +1,5 @@
 """Knowledge ingestion commands: upload, upload-text, verify, delete."""
 
-from typing import Optional
-
 import httpx
 import typer
 from rich.panel import Panel
@@ -37,7 +35,7 @@ _STATUS_STYLES = {
 }
 
 
-def _human_status(raw: str, error_code: Optional[str] = None) -> str:
+def _human_status(raw: str, error_code: str | None = None) -> str:
     """Map raw API status + error_code to a clear label."""
     label = _STATUS_LABELS.get(raw.lower(), raw)
     if label == "errored" and error_code:
@@ -57,15 +55,9 @@ def _status_style(label: str) -> str:
 
 @app.command()
 def upload(
-    files: list[str] = typer.Argument(
-        help="One or more file paths to upload (PDF, DOCX, TXT, etc.)."
-    ),
-    tenant_id: Optional[str] = typer.Option(
-        None, "--tenant-id", help="Tenant ID. Uses default if not specified."
-    ),
-    sub_tenant_id: Optional[str] = typer.Option(
-        None, "--sub-tenant-id", help="Sub-tenant ID."
-    ),
+    files: list[str] = typer.Argument(help="One or more file paths to upload (PDF, DOCX, TXT, etc.)."),
+    tenant_id: str | None = typer.Option(None, "--tenant-id", help="Tenant ID. Uses default if not specified."),
+    sub_tenant_id: str | None = typer.Option(None, "--sub-tenant-id", help="Sub-tenant ID."),
     upsert: bool = typer.Option(
         False,
         "--upsert",
@@ -140,24 +132,16 @@ def upload(
 
 @app.command("upload-text")
 def upload_text(
-    text: Optional[str] = typer.Option(
+    text: str | None = typer.Option(
         None,
         "--text",
         "-t",
         help="Text content to upload as a knowledge source.",
     ),
-    tenant_id: Optional[str] = typer.Option(
-        None, "--tenant-id", help="Tenant ID. Uses default if not specified."
-    ),
-    sub_tenant_id: Optional[str] = typer.Option(
-        None, "--sub-tenant-id", help="Sub-tenant ID."
-    ),
-    title: Optional[str] = typer.Option(
-        None, "--title", help="Title for the knowledge source."
-    ),
-    source_id: Optional[str] = typer.Option(
-        None, "--source-id", help="Custom source ID."
-    ),
+    tenant_id: str | None = typer.Option(None, "--tenant-id", help="Tenant ID. Uses default if not specified."),
+    sub_tenant_id: str | None = typer.Option(None, "--sub-tenant-id", help="Sub-tenant ID."),
+    title: str | None = typer.Option(None, "--title", help="Title for the knowledge source."),
+    source_id: str | None = typer.Option(None, "--source-id", help="Custom source ID."),
 ) -> None:
     """Upload text content to the knowledge base.
 
@@ -191,7 +175,7 @@ def upload_text(
             preview = text[:80] + "..." if len(text) > 80 else text
             lines = [
                 f"[green]\u2713[/green] Knowledge source uploaded to tenant [bold]{tid}[/bold]",
-                f"[dim]\"{preview}\"[/dim]",
+                f'[dim]"{preview}"[/dim]',
             ]
             results = r.get("results", [])
             for item in results:
@@ -208,15 +192,9 @@ def upload_text(
 
 @app.command()
 def verify(
-    file_ids: list[str] = typer.Argument(
-        help="One or more file/source IDs to check processing status."
-    ),
-    tenant_id: Optional[str] = typer.Option(
-        None, "--tenant-id", help="Tenant ID. Uses default if not specified."
-    ),
-    sub_tenant_id: Optional[str] = typer.Option(
-        None, "--sub-tenant-id", help="Sub-tenant ID."
-    ),
+    file_ids: list[str] = typer.Argument(help="One or more file/source IDs to check processing status."),
+    tenant_id: str | None = typer.Option(None, "--tenant-id", help="Tenant ID. Uses default if not specified."),
+    sub_tenant_id: str | None = typer.Option(None, "--sub-tenant-id", help="Sub-tenant ID."),
 ) -> None:
     """Check processing status of uploaded knowledge.
 
@@ -282,15 +260,9 @@ def verify(
 
 @app.command()
 def delete(
-    ids: list[str] = typer.Argument(
-        help="One or more source IDs to delete from the knowledge base."
-    ),
-    tenant_id: Optional[str] = typer.Option(
-        None, "--tenant-id", help="Tenant ID. Uses default if not specified."
-    ),
-    sub_tenant_id: Optional[str] = typer.Option(
-        None, "--sub-tenant-id", help="Sub-tenant ID."
-    ),
+    ids: list[str] = typer.Argument(help="One or more source IDs to delete from the knowledge base."),
+    tenant_id: str | None = typer.Option(None, "--tenant-id", help="Tenant ID. Uses default if not specified."),
+    sub_tenant_id: str | None = typer.Option(None, "--sub-tenant-id", help="Sub-tenant ID."),
     confirm: bool = typer.Option(
         False,
         "--yes",
@@ -333,7 +305,9 @@ def delete(
             )
         print_result(
             result,
-            lambda r: f"[green]\u2713[/green] Deleted {len(clean_ids)} knowledge source(s) from tenant [bold]{tid}[/bold].",
+            lambda r: (
+                f"[green]\u2713[/green] Deleted {len(clean_ids)} knowledge source(s) from tenant [bold]{tid}[/bold]."
+            ),
         )
     except HydraDBClientError as e:
         handle_api_error(e)
