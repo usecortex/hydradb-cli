@@ -25,6 +25,7 @@ classifiers = [
     "Topic :: Software Development :: Libraries :: Python Modules",
     "Environment :: Console",
     "Typing :: Typed",
+    "License :: OSI Approved :: Apache Software License",
 ]
 
 dependencies = [
