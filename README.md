@@ -41,34 +41,27 @@ The CLI installs three runtime dependencies automatically: `typer`, `httpx`, and
 
 ## Installation
 
-### 1. Clone the repository
+### From PyPI (recommended)
+
+```bash
+pip install hydradb-cli
+```
+
+### From source
 
 ```bash
 git clone https://github.com/usecortex/hydradb-cli.git
 cd hydradb-cli
-```
-
-### 2. Create and activate a virtual environment (recommended)
-
-```bash
-python -m venv venv
-source venv/bin/activate        # macOS / Linux
-# venv\Scripts\activate         # Windows
-```
-
-### 3. Install the package
-
-```bash
 pip install .
 ```
 
 For development (editable install so local changes take effect immediately):
 
 ```bash
-pip install -e .
+pip install -e ".[dev]"
 ```
 
-### 4. Verify the installation
+### Verify the installation
 
 ```bash
 hydradb --version
@@ -319,6 +312,12 @@ Tests use `pytest` and live in the `tests/` directory.
 pip install -e .          # editable install so tests can import the package
 pytest                    # runs all tests
 ```
+
+---
+
+## Documentation
+
+Full documentation is available at [docs.hydradb.com/plugins/cli](https://docs.hydradb.com/plugins/cli).
 
 ---
 
